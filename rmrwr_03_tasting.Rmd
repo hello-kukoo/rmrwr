@@ -1,0 +1,123 @@
+---
+title: "03 - Tasting Menu of R"
+subtitle: "RMRWR - Reproducible Medical Research with R"
+author: 
+  - "Peter D.R. Higgins, MD, PhD, MSc"
+  - "Lin Yong (yong.lin@datarx.cn)"
+date: "`r Sys.Date()`"
+output: 
+  html_document:
+    number_sections: true
+    toc: true
+    toc_depth: 2
+    toc_float:
+      collapsed: false
+      smooth_scrool: false
+    theme: readable
+    highlight: tango
+    code_folding: hide
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(tidyverse)
+library(janitor)
+library(rstatix)
+library(medicaldata)
+library(glue)
+prostate <- medicaldata::blood_storage %>% clean_names()
+
+theme <- theme_get()
+#using the Chinese fonts you have, check it with font book.  
+theme$text$family <- "STSong"
+theme_set(theme)
+```
+
+## Analysis of Prostate Data
+
+Wrangling the Prostate data.  We will be modifying the prostate dataset (with the mutate function), particularly the variables aa and fam_hx into properly labeled categorical variables, called factors in R. Then we will save (assign) the result to the prostate_factors object, while retaining the previous version in the prostate object.
+
+```{r wrangle}
+prostate_factors <- prostate %>%
+  mutate(aa = factor(aa, levels = c(0, 1),
+                     labels = c("白人", "非裔美国人"))) %>%
+  mutate(fam_hx = factor(fam_hx, levels = c(0, 1),
+                         labels = c("No Family History", "FHx of Prostate Cancer")))
+```
+
+We will run some code to summarize three variables:
+
+```{r summarize, echo=FALSE, message=FALSE, warning=FALSE}
+prostate_factors %>% 
+  select(age, p_vol, preop_psa, aa, fam_hx) %>% 
+  group_by(aa, fam_hx) %>% 
+  summarize(across(age:preop_psa, mean, na.rm = TRUE))
+```
+
+
+## Including Plots
+
+```{r visualize, echo=FALSE, message=FALSE, warning=FALSE}
+ggplot(prostate_factors) +
+  aes(x = p_vol, y = preop_psa, col = aa) +
+  geom_point() + 
+  geom_smooth(method = "lm") +
+  facet_grid(aa ~ fam_hx) +
+  labs(x = "Prostate Volume", y = "Preoperative PSA",
+       title = "Relationship Between Prostate Volume and Preop PSA, \nSubdivided by Family History and Race") +
+  theme(legend.position = "bottom")
+```
+
+## Statistical Testing
+```{r t-test}
+prostate_factors %>% 
+  t_test(formula = preop_psa ~ aa,
+         detailed = TRUE)
+```
+
+## Importing data
+
+```{r scurvy, eval=FALSE, include=FALSE}
+url_stem <- "https://raw.githubusercontent.com/higgi13425/rmrwr-book/master/"
+
+scurvy_data <- read_csv(glue(url_stem, 'data/scurvy.csv'))
+
+# scurvy_cols <- read_csv(file = glue(url_stem, 'data/scurvy.csv'),
+#                         col_types = cols(
+#                           study_id = col_integer(),
+#                           treatment = col_factor(),
+#                           dosing_regimen_for_scurvy = col_character(),
+#                           gum_rot_d6 = col_character(),
+#                           skin_sores_d6 = col_character(),
+#                           weakness_of_the_knees_d6 = col_character(),
+#                           lassitude_d6 = col_character(),
+#                           fit_for_duty_d6 = col_character()
+#                         ))
+
+scurvy_cols2 <- read_csv(glue(url_stem, 'data/scurvy.csv'),
+                         col_types = "ifcffff")
+```
+
+```{r strep, eval=FALSE, include=FALSE}
+strep_data <- read_tsv(glue(url_stem, 'data/strep_tb.tsv'),
+                       col_types = "cfnnfffffccil")
+
+```
+
+## Explore with skimr and DataExplorer
+
+```{r skimr}
+library(skimr)
+
+skimr::skim(strep_tb)
+```
+
+```{r message=FALSE, warning=FALSE}
+# DataExplorer::create_report(strep_tb)
+
+```
+
+
+
+

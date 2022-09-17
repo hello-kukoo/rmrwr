@@ -1,0 +1,62 @@
+---
+title: "Dashboards with R Markdown"
+subtitle: "EPIR Handbook - Chapter 27"
+author: "Lin Yong (yong.lin@datarx.cn)"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    number_sections: yes
+    toc: yes
+    toc_depth: 4
+    toc_float:
+      collapsed: no
+      smooth_scrool: no
+    theme: flatly
+    highlight: tango
+    code_folding: hide
+---
+
+```{r setup, include=FALSE}
+pacman::p_load(
+  rio,             # data import/export     
+  here,            # locate files
+  tidyverse,       # data management and visualization
+  flexdashboard,   # dashboard versions of R Markdown reports
+  shiny,           # interactive figures
+  plotly           # interactive figures
+)
+
+knitr::opts_chunk$set(message=FALSE, warning=FALSE)
+options(htmltools.dir.version = FALSE)
+```
+
+# Import data
+
+Import the dataset of cases from a simulated Ebola epidemic:
+
+```{r cars}
+# import the linelist
+linelist <- import("data/linelist_cleaned.rds")
+
+head(linelist)
+```
+
+# Create a new R Markdown dashboard
+
+Select “From Template” and select the “Flex Dashboard” template
+
+```{r eval=FALSE}
+rmarkdown::draft("outbreak_dashboard.Rmd",
+                 template = "flex_dashboard",
+                 package = "flexdashboard")
+```
+
+## Headings
+
+In flexdashboard, a primary heading (#) creates a “page” of the dashboard. Second-level headings (##) create a column or a row depending on your orientation: parameter (see details below). Third-level headings (###) create panels for plots, charts, tables, text, etc.
+
+## Adding content
+
+
+
+

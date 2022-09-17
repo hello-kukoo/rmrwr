@@ -1,0 +1,181 @@
+---
+title: "Simple statistical tests"
+subtitle: "EPIR Handbook - Chapter 18"
+author: "Lin Yong (yong.lin@datarx.cn)"
+date: "9/14/2021"
+output: 
+  html_document:
+    number_sections: true
+    toc: true
+    toc_depth: 2
+    toc_float:
+      collapsed: false
+      smooth_scrool: false
+    theme: readable
+    highlight: tango
+    code_folding: hide
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(message=FALSE, warning=FALSE)
+options(htmltools.dir.version = FALSE)
+```
+
+This chapter demonstrates how to conduct simple statistical tests using base R, `rstatix`, and `gtsummary`.
+
+- T-test
+- Shapiro-Wilk test
+- Wilcoxon rank sum test
+- Kruskal-Wallis test
+- Chi-squared test
+- Correlations between numeric variables
+
+Advantages and disadvantages:
+
+- Use base R functions to print a statistical outputs to the R Console
+- Use `rstatix` functions to return results in a data frame, or if you want tests to run by group
+- Use `gtsummary` if you want to quickly print publication-ready tables
+
+# Prepare and import data
+
+```{r prepare-library}
+pacman::p_load(
+  rio,          # File import
+  here,         # File locator
+  skimr,        # get overview of data
+  tidyverse,    # data management + ggplot2 graphics 
+  gtsummary,    # summary statistics and tests
+  rstatix,      # summary statistics and statistical tests
+  corrr,        # correlation analysis for numeric variables
+  janitor,      # adding totals and percents to tables
+  scales,       # easily convert proportions to percents  
+  flextable     # converting tables to pretty images
+  )
+```
+
+```{r import-data-linelist}
+# import the linelist
+linelist <- import("data/linelist_cleaned.rds")
+```
+
+# base R
+
+The commands are relatively simple and results will print to the R Console for simple viewing.
+
+## T-tests (Student's t-test)
+
+```{r two-sample-t-test-1}
+linelist %>% 
+  select(age_years, gender) %>% # keep only columns of interest
+  tbl_summary(     
+    by = gender,                                               # stratify entire table by outcome
+    statistic = all_continuous() ~ "{mean}",        # stats and format for continuous columns    
+    digits = all_continuous() ~ 1,                              # rounding for continuous columns
+    type   = all_categorical() ~ "categorical",                # force all categorical levels to display
+    label  = age_years ~ "Age (years)"                       # display labels for column names
+  ) %>% 
+  add_p()
+
+## compare mean age by gender group with a t-test
+t.test(age_years ~ gender, data = linelist)
+```
+
+```{r two-sample-t-test-2}
+linelist %>% 
+  select(age_years, outcome) %>% # keep only columns of interest
+  tbl_summary(     
+    by = outcome,                                               # stratify entire table by outcome
+    statistic = all_continuous() ~ "{mean}",        # stats and format for continuous columns    
+    digits = all_continuous() ~ 1,                              # rounding for continuous columns
+    label  = age_years ~ "Age (years)",                          # display labels for column names
+    missing_text = "Missing"                                    # how missing values should display
+  ) %>% 
+  add_p()
+
+## compare mean age by outcome group with a t-test
+t.test(age_years ~ outcome, data = linelist)
+```
+```{r one-sample-t-test}
+t.test(linelist$age_years, mu = 15, alternative = "greater")
+```
+
+The Shapiro-Wilk test can be used to determine whether a sample came from a normally-distributed population (an assumption of many other tests and analysis, such as the t-test). However, this can only be used on a sample between 3 and 5000 observations. For larger samples a quantile-quantile plot may be helpful.
+
+```{r shapior-Wilk test}
+shapiro.test(linelist$age_years)
+```
+
+
+# `rstatix` package
+
+Run statistical tests and retrieve results in a “pipe-friendly” framework. The results are automatically in a data frame.
+
+## Summary statistics
+
+```{r get-summary-stats-with-group-data}
+linelist %>%
+  group_by(hospital) %>%
+  rstatix::get_summary_stats(age, temp, type = "five_number")
+```
+
+## T-test
+```{r}
+# Use a formula syntax to specify the numeric and categorical columns
+linelist %>% 
+  t_test(age_years ~ gender)
+
+linelist %>% 
+  t_test(age_years ~ outcome)
+
+# Or use ~ 1 and specify mu = for a one-sample T-test
+linelist %>% 
+  t_test(age_years ~ 1, mu = 20, alternative = "greater")
+
+# done by group
+linelist %>% 
+  group_by(gender) %>% 
+  t_test(age_years ~ 1, mu = 18, alternative = "greater")
+```
+## Chi-squared test
+
+```{r Chi-squared test}
+linelist %>% 
+  tabyl(gender, outcome) %>% 
+  select(-1) %>% 
+  chisq_test()
+```
+
+# `gtsummary` package
+
+## T-tests
+
+```{r}
+# Compare the difference in means for a continuous variable in two groups. 
+
+linelist %>% 
+  select(age_years, outcome) %>%             # keep variables of interest
+  tbl_summary(                               # produce summary table
+    statistic = age_years ~ "{mean} ({sd})", # specify what statistics to show
+    by = outcome) %>%                        # specify the grouping variable
+  add_p(age_years ~ "t.test")                # specify what tests to perform
+```
+
+
+# Correlations
+
+Correlation between numeric variables can be investigated using the tidyverse
+corrr package.
+
+```{r correlations}
+correlation_tab <- linelist %>% 
+  select(generation, age, ct_blood, days_onset_hosp, wt_kg, ht_cm) %>%   # keep numeric variables of interest
+  correlate() %>%       # create correlation table (using default pearson)
+  shave()
+
+correlation_tab %>% 
+  flextable()
+
+# plot correlations
+rplot(correlation_tab)
+```
+

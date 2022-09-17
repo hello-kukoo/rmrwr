@@ -1,0 +1,296 @@
+---
+output:
+  html_document:
+    fig_height: 4.5
+    fig_width: 5.5
+title: "Multiple Regression of Salary"
+---
+
+***
+_Fri Dec 24, 2021 at 11:38 &nbsp; with lessR version 4.1.4_
+
+_Output Options: explain=TRUE, interpret=TRUE, results=TRUE, document=TRUE, code=TRUE_
+
+***
+```{r echo=FALSE}
+suppressPackageStartupMessages(library(lessR))  # lessR
+```
+The variable of primary interest is the _response variable_, Salary. The purpose of this analysis is to account for the values of Salary in  terms of the values of the _predictor variables_ Years, Pre and Post.
+
+## The Data
+Read the data with the `lessR` function `Read`.
+The corresponding data values for the variables in the model comprise the _training data_, from which the model is estimated. 
+
+```{r}
+mydata <- rd("Employee", format = "lessR")
+```
+Data from the following variables are available for analysis: `r xAnd(names(mydata))`. 
+
+## The Model
+
+### Specified Model
+Express Salary as a linear function of three predictor variables: Years, Pre and Post. 
+Within the context of the model, indicate the response variable with a Y, subscripted by the variable name, $Y_{Salary}$. Write each predictor variable as a subscript to an X. From the training data compute $\hat Y_{Salary}$, the _fitted value_ of the response variable from the model for a specific set of values for Years, Pre and Post. 
+$$\hat Y_{Salary} = b_0 + b_1 X_{Years} + b_2 X_{Pre} + b_3 X_{Post}$$
+The _intercept_, $b_0$, indicates the fitted value of Salary, for values of Years, Pre and Post all equal to zero.
+Each _slope coefficient_, $b_1$ through $b_3$, is the average change in the value of response variable, Salary, for a one-unit increase in the value of the corresponding predictor variable, with the values of all remaining predictor variables held constant. The values of these estimated coefficients only apply to the interpretation of the training data from which they were estimated. 
+
+To compute $\hat Y_{Salary}$ from a specific set of values for Years, Pre and Post requires the estimated values of the coefficients of the model, the values of each regression coefficient, $b_j$. This estimation procedure depends on the _residual_, the difference between the actual value of Salary for each row of data and the corresponding value fitted by the model. Define the residual as a variable across all rows of data. Use the subscript _i_ to indicate the $i^{th}$ row of data to emphasize that the expression applies to _each_ row of training data. The name of the response variable in this notation is understood and so is omitted for simplicity. 
+$$e_i = Y_i - \hat Y_i$$
+Estimate the coefficients with ordinary least squares (OLS), which provides the one set of estimates that minimize the sum of the squared residuals, $\sum e^2_i$, across all the rows of the training data. 
+
+Accomplish the estimation and related computations with the `lessR` function `Regression`, abbreviated as `reg`. Keep graphics separate, so generate these later. 
+
+```{r}
+r <- reg(Salary ~ Years + Pre + Post, graphics = FALSE)
+```
+The output begins with a specification of the variables in the model and a brief description of the data. 
+
+```{r}
+r$out_background
+```
+
+Of the `r r$n.obs` cases presented for analysis, `r r$n.keep` are retained, so the number of deleted cases due to missing data is `r r$n.obs - r$n.keep`.
+
+### Estimated Model
+The analysis of the model begins with the estimation of each sample regression coefficient, $b_j$, from the training data. Of greater interest is each corresponding population value, $\beta_j$, in the _population model_. 
+$$\hat Y_{Salary} = \beta_0 + \beta_1 X_{Years} + \beta_2 X_{Pre} + \beta_3 X_{Post}$$
+The associated inferential analyses for each estimate are the hypothesis test and confidence interval.
+Each _t_-test evaluates the _null hypothesis_ that the corresponding _individual_ population regression coefficient is 0, here for the $j^{th}$ coefficient. 
+$$H_0: \beta_j=0$$
+$$H_1: \beta_j \ne 0$$
+The confidence interval provides the range of likely values of the corresponding $\beta_j$. Each 95% confidence interval is the margin of error on either side of the corresponding estimated intercept or slope coefficient, $b_j$. 
+
+```{r}
+r$out_estimates
+```
+This estimated model is the linear function with estimated numeric coefficients that yield a fitted value of Salary from the provided data values of Years, Pre and Post.
+$$\hat Y_{Salary} = `r xP(r$coefficients[1],3)` `r ifelse(sign(r$coefficients)==1, "+", "-")[2]` `r xP(abs(r$coefficients[2]),3)` X_{Years}`r ifelse(sign(r$coefficients)==1, "+", "-")[3]`  `r xP(abs(r$coefficients[3]),3)` X_{Pre}`r ifelse(sign(r$coefficients)==1, "+", "-")[4]`  `r xP(abs(r$coefficients[4]),3)` X_{Post}$$
+Two predictor variables have _p_-values larger than $\alpha$ = 0.05: _`r xAnd(names(which(r$pvalues[2:length(r$pvalues)] > 0.05)))`_. 
+Each null hypothesis of no relationship could not be rejected, so there is a reasonable possibility that each  predictor variable may not contribute to explaining the values of Salary, with the values of all remaining predictor variables held constant. 
+
+This predictor variable has a _p_-value less than or equal to $\alpha$ = 0.05: _`r xAnd(names(which(r$pvalues[2:length(r$pvalues)] <= 0.05)))`_. 
+The possibility should be further explored in the remainder of this analysis that this one variable may form an equally effective but more parsimonious model in terms of its cumulative contribution to explaining the values of Salary, compared to the current model with three predictor variables. 
+
+To extend the results beyond this sample to the population from which the sample was obtained, interpret the meaning of this corresponding coefficient in terms of its confidence interval. 
+
+* _Years_: 
+With 95% confidence, for each additional unit  of  Years, on average, Salary changes somewhere between `r xP(r$cilb[2],3,)` to `r xP(r$ciub[2],3,)`, with the values of Pre and Post held constant.
+
+## Model Fit
+An estimated model is not necessarily useful. A first consideration of usefulness is that the model fits the data from which it is estimated, the training data. To what extent do the values fitted by the model, $\hat Y_{Salary}$, match the corresponding training data values $Y_{Salary}$? Are the individual residuals, $e_i$, typically close to their mean of zero, or are they scattered about the regression surface with relatively large positive values and negative values? There are more considerations of usefulness, but a model that cannot fit its own training data is generally not useful.
+
+### Partitioning of Variance
+
+The analysis of fit depends on the adequacy of the model to account for the variability of the data values of Salary, expressed in model notation as  $Y_{Salary}$. The core component of variability is the _sum of squares_, short for the sum of some type of squared deviations. The _total variability_ of $Y_{Salary}$ depends on the deviations of its data values from its mean, $Y_{Salary} - \bar Y_{Salary}$, and then the resulting sums of squares, $SS_{Salary}$. 
+
+The analysis of the residuals, $e = Y_{Salary} - \hat Y_{Salary}$, follows from the corresponding sum of squares, the value minimized by the least squares estimation procedure, $\sum e^2_i$ = $SS_{Residual}$. This residual sum of squares represents variation of $Y_{Salary}$ _not_ accounted for by $\hat Y_{Salary}$. The complement to the residual sum of squares is the Model (or Regression) sum of squares, the deviations of the fitted values about the mean, $\hat Y_{Salary} - \bar Y_{Salary}$. 
+
+The analysis of variance (ANOVA) partitions this total sum of squares into the residual variability, $\sum e^2_i$, and the Model sum of squares, $SS_{Model}$. The ANOVA table displays these various sources of variation. 
+
+```{r}
+r$out_anova
+```
+$$SS_{Salary} = SS_{Model} + SS_{Residual} = `r xP(r$anova_model["ss"],3)` + `r xP(r$anova_residual["ss"],3)` = `r xP(r$anova_total["ss"],3,, semi=TRUE)` $$
+
+The ANOVA further partitions the overall model sums of squares by predictor variable. 
+$$SS_{Model} = SS_{Years} + SS_{Pre} + SS_{Post} = `r xP(r$anova_model["ss"],3)`$$
+
+The sum of squares for a predictor variable is called a _sequential sums of squares_. It represents the effect of a predictor variable after the effects of all previously entered variables in the model have already been accounted for. Unless the predictor variables are uncorrelated, its value depends on the sequence of the variables as specified in the model. Usually the interpretation of a sequential effect is more useful when the variables are entered in order of perceived importance. 
+
+Progressing through the table of the sequential sums of squares for each predictor variable from the first entry, Years, through the last last entry, Post, forms a sequence of increasingly larger _nested models_ that successively contain more variables. For example, the _p_-value of `r r$pvalues[r$n.vars]` for the last variable entered into the model, `r all.vars(r$formula)[r$n.vars]`, is the same for both the ANOVA table and its regression slope coefficient because in both situations the effects of all other predictor variables are partialled out. 
+
+This fundamental relationship of these various sums of squares components provides the basis for assessing fit.
+
+### Fit Indices
+
+From the ANOVA two types of primary indicators of fit are derived: standard deviation of the residuals and several $R^2$ statistics. 
+
+```{r}
+r$out_fit
+```
+
+The _standard deviation of the residuals_, $s_e$, directly assesses the variability of the data values of Salary about the corresponding fitted values for the training data, the particular data set from which the model was estimated. Each mean square in the ANOVA table is a variance, a sum of squares divided by the corresponding degrees of freedom, _df_. By definition, the standard deviation, $s_e$ is the square root of the mean square of the residuals. 
+$$s_e = \sqrt{MS_{Residual}} = \sqrt{`r xP(r$anova_residual["ms"],3)`} = `r xP(r$se,3,, semi=TRUE)`$$
+To interpret $s_e$ = `r xP(r$se,3,)`, consider the estimated range of 95% of the values of a normally distributed variable, which depends on the corresponding 2.5% cutoff from the $t$-distribution for df=`r r$anova_residual["df"]`: `r xP(-qt(0.025, df=r$anova_residual["df"]),3)`. 
+$$95\% \;  Range: 2 * t_{cutoff} * s_e = 2 * `r xP(-qt(0.025, df=r$anova_residual["df"]),3)` * `r xP(r$se,3)` = 
+`r xP(r$resid_range,3,, semi=TRUE)`$$
+
+This range of the residuals for the fitted values is the lower limit of the range of prediction error presented later. 
+
+A second type of fit index is $R^2$, the proportion of the overall variability of response variable Salary that is accounted for by the model, applied to the training data, expressed either in terms of $SS_{Residual}$ or $SS_{Model}$. 
+$$R^2 = 1 - \frac{SS_{Residual}}{SS_{Salary}} = \frac{SS_{Model}}{SS_{Salary}} = \frac{`r xP(r$anova_model["ss"],3)`} {`r xP(r$anova_total["ss"],3)`} = `r xP(r$Rsq,3)` $$ 
+Unfortunately when any new predictor variable is added to a model, useful or not, $R^2$ necessarily increases. Use the adjusted version, $R^2_{adj}$, to more appropriately compare models estimated from the same training data with different numbers of predictors. $R^2_{adj}$ helps to avoid overfitting a model because it only increases if a new predictor variable added to the model improves the fit more than would be expected by chance. The adjustment considers the number of predictor variables relative to the number of rows of data (cases). Accomplish this adjustment with the degrees of freedom, to transform each Sum of Squares to the corresponding Mean Squares_ 
+$$R^2_{adj} = 1 - \frac{SS_{Residual} \; / \; `r r$anova_residual["df"]`}
+{SS_{Salary} \; / \; `r r$anova_total["df"]`} = 1 - \frac{MS_{Residual}}{MS_{Salary}} = 1 - \frac{`r xP(r$anova_residual["ms"],3)`} {`r xP(r$anova_total["ms"],3)`} = `r xP(r$Rsqadj,3)`$$
+From this analysis compare $R^2$ = `r xP(r$Rsq,3)` to the adjusted value of $R^2_{adj}$ = `r xP(r$Rsqadj,3)`, a difference of `r xP((r$Rsq-r$Rsqadj), 3)`. A large difference indicates that too many predictor variables in the model for the available data yielded an overfitted model. 
+
+Both $R^2$ and $R^2_{adj}$ describe the fit of the model to the training data. To generalize to prediction accuracy on _new_ data, evaluate the fit of the model to predict using the _predictive residual_ (PRE). To calculate the predictive residual for a row of data (case), first estimate the model with that case deleted, that is, from all the remaining cases in the training data, an example of a _case-deletion_ statistic. Repeat for all rows of data. $SS_{PRE}$, or PRESS, is the sum of squares of all the predictive residuals in a data set. From $SS_{PRE}$ define the predictive $R^2$, $R^2_{PRESS}$. 
+$$R^2_{PRESS} = 1 - \frac{SS_{PRE}}{SS_{Salary}} = 1 - \frac{`r xP(r$PRESS,3)`} {`r xP(r$anova_total["ss"],3)`} = `r xP(r$RsqPRESS,3)` $$ 
+
+Because an estimated model at least to some extent overfits the training data, $R^2_{PRESS}$ = `r xP(r$RsqPRESS,3)` is lower than both $R^2$ and $R^2_{adj}$. The value is lower, but is the more appropriate value to understand how well the model predicts new values beyond the training from which it was estimated. 
+
+### Hypothesis Tests of Multiple Coefficients
+The ANOVA table provides for the overall hypothesis test that evaluates if _all_ the predictor variables as a set -- Years, Pre and Post -- are related to Salary as specified by the model. 
+$$
+\begin{aligned}
+H_0&: \;\beta_{Years} = \beta_{Pre} = \beta_{Pre} = \beta_{Post}= 0 \\\\ 
+H_1&: \; at \; least \;  one \;  \beta_j \ne 0
+\end{aligned}
+$$
+From the sums of squares for the Model and Residuals, with degrees of freedom of `r as.integer(r$anova_model["df"])` and `r as.integer(r$anova_residual["df"])`, the test statistic is _F_ = `r xP(r$anova_model["fvalue"],3)`, with a _p_-value of `r xP(r$anova_model["pvalue"],3)`.
+
+To help identify predictors that contribute little beyond those variables previously included in the model, generally list the more important variables first in the model specification. Add together the sequential sum of squares from the ANOVA table for variables listed last in the table to form a nested model. Then test if the designated _subset_ of the regression coefficients are all equal to zero. To illustrate, consider the hypothesis test that the slope coefficients for the last two variables, Pre and Post, are both equal to zero. 
+$$
+\begin{aligned}
+H_0&: \;\beta_{Pre} = \beta_{Post}= 0 \\\\ 
+H_1&: \; at \; least \;  one \;  \beta_{Pre}, \beta_{Post} \ne 0
+\end{aligned}
+$$
+
+Compare two nested models with the `lessR` function `Nest`. Specify the response variable Salary, the variables in the reduced model, and then the additional variables in the full model. `Nest` also ensures to compare the same data values when there is missing data that might otherwise leave more data in the analysis of the reduced model. 
+
+```{r}
+n <- Nest(Salary, c(Years), c(Pre, Post))
+```
+
+First verify that the reduced and full models are properly specified. 
+
+```{r}
+n$out_models
+```
+
+Compare nested models to evaluate if the additional variables in the full model provide a detectable increase in fit beyond that of the reduced model. Evidence for accepting the reduced model is to have the test _not_ be significant, which means that the evaluated coefficients from the additional variables in the full model are not detected to be different from 0, and so perhaps need not be included in the model. 
+
+```{r}
+n$out_anova
+```
+`r reject <- "Reject the null hypothesis of the tested regression coefficients equal to 0 because of the small _p_-value of"`
+`r accept <- "No difference of the coefficients from zero detected because of the relatively large _p_-value of"`
+
+`r if ((n$anova_tested[5]< 0.05)) reject else accept` `r xP(n$anova_tested[5],3)`. 
+Realize that if the reduced model was constructed solely from the regression output of the initial training data, and then analyzed from the same data, the analysis is _post-hoc_. The _p_-value in this situation is an interesting and perhaps useful heuristic, but not to be literally interpreted. 
+
+## Relations Among the Variables
+
+### Scatter Plot
+
+How do the variables in the model relate to each other? The correlations of response variable Salary with predictor variables Years, Pre and Post should be high. 
+The correlations of the predictor variables with each other should be relatively small. 
+
+Visually summarize all the relationships among the variables in the model with the scatterplot. 
+The model has multiple predictor variables, so the different scatter plots between each pair of variables are presented in a scatter plot matrix. Each scatter plot in the matrix also contains a non-linear best-fit curve. 
+Express the numeric variable linear relationships among the variables in the model with their correlations. 
+Plot the scatter plot separately with the `lessR` function `regPlot`. Specify option 1 to indicate this specific plot.
+
+```{r}
+regPlot(r, 1)  # 1: scatter plot matrix
+```
+
+### Collinearity Analysis
+The collinearity analysis assesses the extent that the predictor variables -- Years, Pre and Post -- linearly depend upon each other, which in the simplest case is a high pairwise correlation. Although collinearity diminishes neither the fit of the model, nor predictive efficacy, it typically indicates an overly complex model. The effects of collinear variables cannot be easily disentangled without a large sample size, so they have relatively large standard errors of their estimated slope coefficients, which yield unstable estimates. 
+
+To assess collinearity for predictor variable $X_j$, regress that predictor onto all of the remaining predictor variables. A high resulting $R^2_j$ indicates collinearity for that predictor. Usually express this result in terms of the _tolerance_ of the predictor, $1 - R^2_j$, the proportion of variance for $X_j$ _not_ due do the remaining predictor variables. Because each $R^2_j$ should be low, presumably at least less than 0.8, tolerance should be high, at least larger than approximately 0.20. An equivalent statistic is the _variance inflation factor_ (VIF), which indicates the extent collinearity inflates the variance of the estimated coefficient. VIF is the reciprocal of tolerance, so usually should be at least less than approximately 5.
+
+```{r}
+r$out_collinear
+```
+Collinearity is indicated. Two variables have tolerances less than the cutoff of 0.20: `r xAnd(names(r$model[which(r$tolerances < 0.20) + 1]))`. 
+The predictor variable with the lowest tolerance is `r xAnd(names(r$model[which(r$tolerances == min(r$tolerances)) + 1]))` at `r xP(min(r$tolerances),3)`.
+
+### Possible Subset Models
+Especially when collinearity is present, can a simpler model be more, or at least almost, as effective as the current model? 
+
+To investigate, assess the fit for the models that correspond to possible, effective combinations of the predictor variables. Each row of the analysis defines a different model. A 1 means the predictor variable is in the model, a 0 means it is excluded from the model.
+
+```{r}
+r$out_subsets
+```
+
+The goal of this analysis is _parsimony_, to obtain the most explanatory power, here assessed with $R^2_{adj}$, with the least number of predictor variables, presumably guided also by the content and meaningfulness of the variables in the model. 
+
+Note that this analysis only describes the available data. This subset analysis is a descriptive heuristic that can effectively help eliminate unnecessary predictor variables from your model, but all resulting inferential statistics such as _p_-values are no longer valid. Ultimately a model revised from the training data requires cross-validation on a new data set. 
+
+## Analysis of Residuals and Influence
+Values of Salary fitted by the estimated model do not generally equal the corresponding data values_ Which cases (rows of data) contribute the most to this lack of fit? 
+The identification of cases that have a large residual and/or undue influence on the estimation of the model helps detect potential outliers. For each case, in addition to the data values, fitted value and corresponding residual, the analysis provides the following values: 
+
+* _residual_: Value of the response variable Salary minus its fitted value, $e = Y_{Salary} - \hat Y_{Salary}$ 
+* _rstudent_: Externally Studentized residual, standardized value of the residual from a model estimated without the case present 
+* _dffits_: Standardized difference between a fitted value with and without the case present 
+* _cooks_: Cook's Distance, the aggregate influence of the case on all the fitted values with each fitted value calculated with the case deleted 
+
+
+```{r}
+r$out_residuals
+```
+From this analysis the five largest Cook's distances: `r xP(r$resid.max[1],2)`, `r xP(r$resid.max[2],2)`, `r xP(r$resid.max[3],2)`, `r xP(r$resid.max[4],2)` and `r xP(r$resid.max[5],2)`.
+
+An informal criterion for evaluating the size of Cook's distance is a cutoff value of 1 to indicate too large of a large size. 
+No cases have a Cook's distance larger than 1 in this analysis. 
+
+## Prediction Intervals
+Ultimately the analysis moves beyond the training sample. Prediction is from _new_ data values of Years, Pre and Post, what may be called the _prediction sample_. Applying these new data values to the estimated model yields the predicted values. For data values from the training sample, the fitted value and predicted value are the same, calculated from the same estimated model, but are different concepts with different interpretations. 
+
+Unfortunately, prediction is not perfect. The range of values likely to contain the actual data value for Salary predicted from specific values of Years, Pre and Post quantifies the _prediction error_. The standard deviation of the residuals, $s_e$, assumed to be the same for all sets of values of the predictor variables, specifies the _modeling error_ of the fitted values from the training data, error due to imperfections in the model. However, for predictions of future values of Salary, new data are collected. So sampling error of a value on the regression line, indicated with $s_{\hat Y}$, must also be considered in the assessment of prediction error. Consideration of both sources of error results in the _standard error of prediction (or forecast) 
+
+$$s_f = \sqrt{s^2_e + s^2_{\hat Y}}$$
+
+Unlike modeling error, the amount of sampling error varies depending on the values of the predictor variables, so each row of data has its own value, $s_f$. Each prediction interval is the margin of error, the _t_-cutoff multiplied by the corresponding $s_f$, added and subtracted on either side of $\hat Y_{Salary}$.
+
+### Prediction Intervals from the Training Data
+
+The analysis provides each row of data values, _as if_ they were  new data, with a predicted value based on the model estimated from the training data, as well as the standard error of prediction. From these values obtain the lower and upper bounds of the corresponding 95% prediction interval. By default, only the first three, middle three and last three rows of data are presented, sufficient to indicate the ranges of prediction error encountered throughout the ranges of data values
+
+```{r}
+r$out_predict
+```
+
+The size of the prediction intervals for the range of data found in the input data table vary from a minimum of `r xP(r$pred_min_max[1], 3,)` for `r xAnd(xRow(r$pred_min_max[1]))` to a maximum of `r xP(r$pred_min_max[2], 3,)` for `r xAnd(xRow(r$pred_min_max[2]))`. 
+Plot the scatter plot with prediction intervals separately with the `lessR` function `regPlot`. Specify option 1 to indicate this specific plot.
+
+### Prediction Intervals from New Data
+
+New data values from which to obtain a prediction, different from the training data, can be entered with the options X1_new, X2_new, up to X6_new, where each option name refers to the position of the corresponding predictor variable in the specification of the regression model. Any number of values can be specified for each predictor variable. Suppose, for example, that there are two values of interest  for each predictor variable from which to make a prediction, listed below. 
+
+Years: 0, 16  
+Pre: 68, 92  
+Post: 68, 95  
+
+Re-run the analysis to obtain the prediction intervals with these specified values_ 
+
+
+```{r}
+r <- reg(Salary ~ Years + Pre + Post,
+         X1_new=c(0,16), X2_new=c(68,92), X3_new=c(68,95),
+         graphics = FALSE)
+```
+
+The new data values are specified for each variable separately, but a row of data consists of data values for all the predictor values_ Accordingly, calculate a prediction interval for each combination of the specified new values for each predictor variable. 
+
+```{r}
+r$out_predict
+```
+
+The size of the prediction intervals for the range of data found in the newly specified values vary from a minimum of `r xP(r$pred_min_max[1], 3,)` for `r xAnd(xRow(r$pred_min_max[1]))` to a maximum of `r xP(r$pred_min_max[2], 3,)` for `r xAnd(xRow(r$pred_min_max[2]))`. The rows in the output display, however, are re-ordered according to the combinations of the ordered values of the predictor variables. 
+
+## Model Validity
+The residuals should be independent, normal random variables with a mean of zero and constant variance. 
+
+### Distribution of Residuals
+For the inferential analyses to be valid, the residuals should be normally distributed. 
+Violation of normality does not bias the estimates, but it does render the inferential tests invalid. 
+Plot the distribution of residuals separately with the `lessR` function `regPlot`. Specify option 2 to indicate this specific plot.
+
+```{r}
+regPlot(r, 2)  # 2: distribution of residuals
+```
+
+
+### Fitted Values vs Residuals
+The residuals should represent random variation, free of any pattern or structure. They should satisfy the _homoscedasticity_ assumption, randomly scattered about 0, with approximately the same level of variability across the range of the fitted values within a horizontal band around the zero-line. Otherwise they demonstrate _heteroskedasticity_. 
+Plot the scatter plot of fitted values with residuals separately with the `lessR` function `regPlot`. Specify option 3 to indicate this specific plot.
+
+```{r}
+regPlot(r, 3)  # 3: scatter plot of fitted with residuals
+```

@@ -1,0 +1,22 @@
+---
+title: "Survival Analysis"
+subtitle: "EPIR Handbook - Chapter 27"
+author: "Lin Yong (yong.lin@datarx.cn)"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    number_sections: yes
+    toc: yes
+    toc_depth: 4
+    toc_float:
+      collapsed: no
+      smooth_scrool: no
+    theme: journal
+    highlight: tango
+    code_folding: hide
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+

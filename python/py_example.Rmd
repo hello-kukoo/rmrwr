@@ -1,0 +1,26 @@
+---
+title: "Getting started with Python using R and reticulate"
+output: html_notebook
+---
+
+```{r setup}
+library(reticulate)
+use_condaenv(condaenv = "pydata", conda = "~/miniconda3/bin/conda")
+
+# source_python("py_example.py")
+```
+
+```{python}
+from sklearn import linear_model
+
+linreg_python = linear_model.LinearRegression()
+```
+
+```{r}
+# Fit model 
+linreg_python$fit(X = mtcars[,-1], y = mtcars$mpg)
+
+data.frame(var = c("Intercept", names(mtcars)[-1]), 
+           python_coef = c(linreg_python$intercept_, linreg_python$coef_))
+```
+

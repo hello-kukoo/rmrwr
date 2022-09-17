@@ -1,0 +1,159 @@
+---
+title: "Use R for Matching Samples Propensity Score"
+subtitle: https://datascienceplus.com/how-to-use-r-for-matching-samples-propensity-score/
+author: "Lin Yong (yong.lin@datarx.cn)"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    number_sections: yes
+    toc: yes
+    toc_depth: 4
+    toc_float:
+      collapsed: no
+      smooth_scrool: no
+    theme: journal
+    highlight: tango
+    code_folding: hide
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message=FALSE, warning=FALSE)
+
+pacman::p_load(
+  tidyverse,
+  skimr,
+  wakefield,
+  tableone,
+  MatchIt
+)
+```
+
+# Introduction
+
+Propensity Score Matching (PSM) is a “statistical matching technique that attempts to estimate the effect of a treatment, policy, or other intervention by accounting for the covariates that predict receiving the treatment”.  The propensity score analysis assumes that an unbiased comparison between samples can only be made when the subjects of both samples have similar characteristics. PSM can not only be used as “an alternative method to estimate the effect of receiving treatment when random assignment of treatments to subjects is not feasible”, it can also be used for the comparison of samples in epidemiological studies. 
+
+
+# Creating two random data frames
+
+In a first step, we create a dataframe named `df.patients`. We want the dataframe to contain specifications of age and sex for 250 patients. The patients’ age shall be between 30 and 78 years. Furthermore, 70% of patients shall be male.
+
+```{r random-patient-data}
+set.seed(1234)
+
+df.patients <- r_data_frame(n = 250, 
+                            age(x = 30:78, 
+                                name = 'Age'), 
+                            sex(x = c("Male", "Female"), 
+                                prob = c(0.70, 0.30), 
+                                name = "Sex"))
+df.patients$Sample <- as.factor('Patients')
+```
+
+The **summary(skim)**-function returns some basic information about the dataframe created.
+
+```{r explore-the-data}
+skim(df.patients)
+# summary(df.patients)
+```
+
+In a second step, we create another dataframe named df.population. We want this dataframe to comprise the same variables as df.patients with different specifications. With 18 to 80, the age-range of the population shall be wider than in the patient sample and the proportion of female and male patients shall be the same.
+
+```{r random-population-data}
+set.seed(1234)
+df.population <- r_data_frame(n = 1000, 
+                              age(x = 18:80, 
+                                  name = 'Age'), 
+                              sex(x = c("Male", "Female"), 
+                                  prob = c(0.50, 0.50), 
+                                  name = "Sex"))
+df.population$Sample <- as.factor('Population')
+
+skim(df.population)
+```
+
+# Merging the dataframes
+
+```{r merging-the-dataset}
+mydata <- rbind(df.patients, df.population)
+mydata$Group <- as.logical(mydata$Sample == 'Patients')
+mydata$Distress <- ifelse(mydata$Sex == 'Male', 
+                          age(nrow(mydata), x = 0:42, name = 'Distress'),
+                          age(nrow(mydata), x = 15:42, name = 'Distress')
+                        )
+```
+
+When we compare the distribution of age and sex in both samples, we discover significant differences:
+
+```{r compare-the-two-dataset}
+table1 <- CreateTableOne(vars = c('Age', 'Sex', 'Distress'), 
+                         data = mydata, 
+                         factorVars = 'Sex', 
+                         strata = 'Sample')
+table1 <- print(table1, 
+                printToggle = FALSE, 
+                noSpaces = TRUE)
+knitr::kable(table1[,1:3],  
+      align = 'c', 
+      caption = 'Table 1: Comparison of unmatched samples')
+```
+
+Furthermore, the level of distress seems to be significantly higher in the population sample.
+
+
+# Matching the samples
+
+We are going to match the two samples using the **matchit**-function of the `MatchIt` package. The method command method="**nearest**" specifies that the nearest neighbors method will be used. Other matching methods are _exact matching_, _subclassification_, _optimal matching_, _genetic matching_, and _full matching_ (method = c("**exact**", "**subclass**", "**optimal**", "**genetic**", "**full**")). The ratio command `ratio = 1` indicates a _one-to-one_ matching approach. With regard to our example, for each case in the patient sample exactly one case in the population sample will be matched. Please also note that the Group variable needs to be logic (TRUE vs. FALSE).
+
+```{r match-the-sample}
+set.seed(1234)
+
+match.it <- matchit(Group ~ Age + Sex, data = mydata, method="nearest", ratio=1)
+a <- summary(match.it)
+```
+
+After matching the samples, the size of the population sample was reduced to the size of the patient sample (n=250; see following table 2).
+
+```{r sample-size-table2}
+knitr::kable(a$nn, digits = 2, align = 'c', 
+      caption = 'Table 2: Sample sizes')
+```
+
+The following output shows, that the distributions of the variables Age and Sex are nearly identical after matching.
+
+```{r age-and-sex-are-matching-table3}
+knitr::kable(a$sum.matched[,c(1,2,3)], digits = 2, align = 'c', 
+      caption = 'Table 3: Summary of balance for matched data')
+```
+
+The distributions of propensity scores can be visualized using the **plot**-function which is part of the **MatchIt** package .
+
+```{r plot-the-matching}
+plot(match.it, type = 'jitter', interactive = FALSE)
+```
+
+# Saving the matched samples
+
+Finally, the matched samples will be saved into a new dataframe named **df.match**.
+
+```{r save-the-matched-data}
+df.match <- match.data(match.it)[1:ncol(mydata)]
+rm(df.patients, df.population)
+```
+
+Eventually, we can check whether the differences in the level of _distress_ between both samples are still significant.
+
+```{r check-significance}
+
+table4 <- CreateTableOne(vars = c('Age', 'Sex', 'Distress'), 
+                         data = df.match, 
+                         factorVars = 'Sex', 
+                         strata = 'Sample')
+table4 <- print(table4, 
+                printToggle = FALSE, 
+                noSpaces = TRUE)
+knitr::kable(table4[,1:3],  
+      align = 'c', 
+      caption = 'Table 4: Comparison of matched samples')
+```
+
+With a p-value of 0.222, Student’s t-test does not indicate significant differences anymore. Thus, PSM helped to avoid an alpha mistake.

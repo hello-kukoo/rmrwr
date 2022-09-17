@@ -1,0 +1,270 @@
+---
+title: "Univariate and multivariable regression"
+subtitle: EPIR Handbook - Chapter 19
+author: "Lin Yong (yong.lin@datarx.cn)"
+date: "`r Sys.Date()`"
+output:
+  word_document:
+    toc: yes
+    toc_depth: '4'
+  html_document:
+    number_sections: yes
+    toc: yes
+    toc_depth: 4
+    toc_float:
+      collapsed: no
+      smooth_scrool: no
+    theme: readable
+    highlight: tango
+    code_folding: hide
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+pacman::p_load(
+  rio,          # File import
+  here,         # File locator
+  tidyverse,    # data management + ggplot2 graphics, 
+  stringr,      # manipulate text strings 
+  purrr,        # loop over objects in a tidy way
+  gtsummary,    # summary statistics and tests 
+  broom,        # tidy up results from regressions
+  lmtest,       # likelihood-ratio tests
+  parameters,   # alternative to tidy up results from regressions
+  see,          # alternative to visualise forest plots
+  flextable     # converting tables to pretty images
+  )
+```
+
+# Intro
+
+1. Univariate: two-by-two tables
+2. Stratified: mantel-haenszel estimates
+3. Multivariable: variable selection, model selection, final table
+4. Forest plots
+
+```{r import-data}
+# import the linelist
+linelist <- import("data/linelist_cleaned.rds")
+```
+
+# Clean data
+
+```{r define-interest-variables}
+## define variables of interest 
+explanatory_vars <- c("gender", "fever", "chills", "cough", "aches", "vomit")
+
+## convert dichotomous variables to 0/1 
+linelist <- linelist %>%  
+  mutate(across(                                      
+    .cols = all_of(c(explanatory_vars, "outcome")),  ## for each column listed and "outcome"
+    .fns = ~case_when(                              
+      . %in% c("m", "yes", "Death")   ~ 1,           ## recode male, yes and death to 1
+      . %in% c("f", "no",  "Recover") ~ 0,           ## female, no and recover to 0
+      TRUE                            ~ NA_real_)    ## otherwise set to missing
+    )
+  )
+
+## add in age_category to the explanatory vars 
+explanatory_vars <- c(explanatory_vars, "age_cat")
+
+## drop rows with missing information for variables of interest 
+linelist <- linelist %>% 
+  drop_na(any_of(c("outcome", explanatory_vars)))
+```
+
+# Univariate
+
+Two options for doing univariate analysis:
+
+- Use functions available in **base** R to quickly print results to the console. Use the `broom` package to tidy up the outputs.
+- Use the `gtsummary` package to model and get publication-ready outputs
+
+## **base** R
+
+### Linear regression {.tabset}
+
+The base R function lm() perform linear regression, assessing the relationship between numeric response and explanatory variables that are assumed to have a linear relationship.
+
+```{r linear-regression}
+lm_results <- lm(ht_cm ~ age, data = linelist)
+```
+
+#### Summary
+
+run summary() on the model results to see the coefficients (Estimates), P-value, residuals, and other measures.
+
+```{r summary-lm}
+summary(lm_results)
+```
+
+#### tidy
+use the tidy() function from the broom package to pull the results in to a table. for each year increase in age the height increases by 3.5 cm and this is statistically significant
+
+```{r}
+tidy(lm_results)
+```
+
+#### Visualization
+
+```{r visulize-lm}
+## pull the regression points and observed data into one dataset
+points <- augment(lm_results)
+
+## plot the data using age as the x-axis 
+ggplot(points, aes(x = age)) + 
+  ## add points for height 
+  geom_point(aes(y = ht_cm)) +
+  ## add your regression line 
+  geom_line(aes(y = .fitted), colour = "red")
+```
+
+### [Logistic regression](https://epirhandbook.com/univariate-and-multivariable-regression.html#logistic-regression) 
+
+The function `glm()` from the stats package (part of base R) is used to fit *Generalized Linear Models (GLM)*.
+
+- `formula = ` The model is provided to `glm()` as an equation, with the outcome on the left and explanatory variables on the right of a tilde `~`.
+- `family = ` This determines the type of model to run. For logistic regression, use `family = "binomial"`, for poisson use `family = "poisson"`. Other examples are in the table below.
+- `data = ` Specify your data frame
+
+#### Univariate `glm()`
+
+```{r univariate-glm}
+model <- glm(outcome ~ age_cat, family = "binomial", data = linelist) %>% 
+  tidy(exponentiate = TRUE, conf.int = TRUE) %>%        # exponentiate and produce CIs
+  mutate(across(where(is.numeric), round, digits = 2))  # round all numeric columns
+
+counts_table <- linelist %>% 
+  janitor::tabyl(age_cat, outcome)
+
+combined <- counts_table %>%           # begin with table of counts
+  bind_cols(., model) %>%              # combine with the outputs of the regression 
+  select(term, 2:3, estimate,          # select and re-order cols
+         conf.low, conf.high, p.value) %>% 
+  mutate(across(where(is.numeric), round, digits = 2)) ## round to 2 decimal places
+
+combined %>% 
+  flextable::qflextable()
+```
+
+## **gtsummary** package
+
+```{r gtsummary-glm}
+# theme_gtsummary_journal(journal = "jama")
+
+univ_tab <- linelist %>% 
+  dplyr::select(explanatory_vars, outcome) %>% ## select variables of interest
+
+  tbl_uvregression(                         ## produce univariate table
+    method = glm,                           ## define regression want to run (generalised linear model)
+    y = outcome,                            ## define outcome variable
+    method.args = list(family = binomial),  ## define what type of glm want to run (logistic)
+    exponentiate = TRUE                     ## exponentiate to produce odds ratios (rather than log odds)
+  )
+
+## view univariate results table 
+univ_tab
+
+# reset gtsummary themes
+# reset_gtsummary_theme()
+```
+
+
+
+# Multivariable
+
+## Conductmultivriable
+add more variables to the right side of the equation, separated by plus symbols (+).
+
+```{r}
+mv_reg <- glm(outcome ~ gender + fever + chills + cough + aches + vomit + age_cat, family = "binomial", data = linelist)
+
+summary(mv_reg)
+```
+
+If you want to include two variables and an interaction between them you can separate them with an asterisk * instead of a +. Separate them with a colon : if you are only specifying the interaction. 
+```{r}
+glm(outcome ~ gender + age_cat * fever, family = "binomial", data = linelist)
+```
+
+## Combine with **gtsummary**
+The gtsummary package provides the tbl_regression() function, which will take the outputs from a regression (glm() in this case) .
+
+```{r}
+## run a regression with all variables of interest 
+mv_reg <- explanatory_vars %>%  ## begin with vector of explanatory column names
+  str_c(collapse = "+") %>%     ## combine all names of the variables of interest separated by a plus
+  str_c("outcome ~ ", .) %>%    ## combine the names of variables of interest with outcome in formula style
+  glm(family = "binomial",      ## define type of glm as logistic,
+      data = linelist)          ## define your dataset
+
+## choose a model using forward selection based on AIC
+## you can also do "backward" or "both" by adjusting the direction
+final_mv_reg <- mv_reg %>%
+  step(direction = "forward", trace = FALSE)
+
+## show results table of final regression 
+mv_tab <- tbl_regression(final_mv_reg, exponentiate = TRUE)
+
+mv_tab
+```
+
+```{r}
+## combine with univariate results 
+tbl_merge(
+  tbls = list(univ_tab, mv_tab),                          # combine
+  tab_spanner = c("**Univariate**", "**Multivariable**")) # set header names
+```
+
+# Forest plot
+
+## **ggplot2** package
+
+You can build a forest plot with ggplot() by plotting elements of the multivariable regression results. Add the layers of the plots using these “geoms”:
+
+- estimates with geom_point()
+- confidence intervals with `geom_errorbar()`
+- a vertical line at OR = 1 with `geom_vline()`
+
+```{r}
+options(scipen=999)
+
+mv_tab_base <- final_mv_reg %>% 
+  broom::tidy(exponentiate = TRUE, conf.int = TRUE) %>%  ## get a tidy dataframe of estimates 
+  mutate(across(where(is.numeric), round, digits = 2))          ## round 
+```
+
+```{r}
+## remove the intercept term from your multivariable results
+mv_tab_base %>% 
+  
+  #set order of levels to appear along y-axis
+  mutate(term = fct_relevel(
+    term,
+    "vomit", "gender", "fever", "cough", "chills", "aches",
+    "age_cat5-9", "age_cat10-14", "age_cat15-19", "age_cat20-29",
+    "age_cat30-49", "age_cat50-69", "age_cat70+")) %>%
+  
+  # remove "intercept" row from plot
+  filter(term != "(Intercept)") %>% 
+  
+  ## plot with variable on the y axis and estimate (OR) on the x axis
+  ggplot(aes(x = estimate, y = term)) +
+  
+  ## show the estimate as a point
+  geom_point() + 
+  
+  ## add in an error bar for the confidence intervals
+  geom_errorbar(aes(xmin = conf.low, xmax = conf.high)) + 
+  
+  ## show where OR = 1 is for reference as a dashed line
+  geom_vline(xintercept = 1, linetype = "dashed")
+```
+## **easystats** package
+
+```{r}
+pacman::p_load(easystats)
+```
+
+

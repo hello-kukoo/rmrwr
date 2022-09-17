@@ -1,0 +1,76 @@
+---
+output:
+  html_document:
+    fig_height: 4.5
+    fig_width: 5.5
+---
+
+***
+_Fri Dec 24, 2021 at 11:35 &nbsp; with lessR version 4.1.4_
+
+***
+# Distribution of Salary
+
+```{r, echo=FALSE}
+suppressPackageStartupMessages(library(lessR))  # load lessR
+```
+The purpose of this analysis is to examine the distribution of values of the variable Salary.
+
+## The Data
+First read the data.
+```{r}
+mydata <- rd("Employee", format = "lessR")
+```
+Data from the following variables are available for analysis: `r xAnd(names(mydata))`. 
+
+## The Histogram
+
+Obtain the histogram and related analyses with the `lessR` function `Histogram`. Can also use the abbreviation `hs`.
+```
+h <- Histogram(Salary)
+```
+
+The first part of the output provides the descriptive statistics for this sample of data of Salary.
+```{r, echo=FALSE}
+s <- ss.brief(Salary)
+```
+```{r, echo=FALSE}
+s$out_stats
+```
+
+Of the `r s$n+s$n.miss` cases presented for analysis, `r s$n` are retained, so the number of deleted data values due to missing data is `r s$n.miss`. The sample mean of Salary is `r xP(s$mean)` with a standard deviation of `r xP(s$sd)` ranging from `r xP(s$min)` to `r xP(s$max)`. 
+
+```{r, echo=FALSE}
+h <- hs(Salary)
+```
+
+The histogram presents a graphical display of the frequency of the different values of Salary grouped into bins. The width of each bin is `r h$bin_width`.
+The tabular presentation of the distribution lists the bins, the count of the values in each bin, the corresponding proportions and the cumulative counts and proportions.
+```{r, echo=FALSE}
+h$out_freq
+```
+The analysis of any variable should consider if outliers are present. Here the definition of an outlier is Tukey's from the boxplot, any value more than 1.5 interquartile ranges from the median.
+```{r, echo=FALSE}
+h$out_outliers
+```
+
+## The Density Plot
+
+Obtain the density plot and related analyses of Salary with the `lessR` function `Density`. Can also use the abbreviation `dn`.
+```{r}
+Density(Salary, quiet=TRUE)
+```
+
+## The Box Plot
+
+Obtain the box plot and related analyses of Salary with the `lessR` function `BoxPlot`. Can also use the abbreviation `bx`.
+```{r}
+BoxPlot(Salary, quiet=TRUE)
+```
+
+## The Scatter Plot
+
+Obtain the 1-dimensional scatter plot and related analyses of Salary with the `lessR` function `ScatterPlot`. Can also use the abbreviation `sp`.
+```{r}
+ScatterPlot(Salary, quiet=TRUE)
+```

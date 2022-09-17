@@ -1,0 +1,101 @@
+---
+title: "Summary Tools"
+author: "Lin Yong (yong.lin@datarx.cn)"
+date: "`r Sys.Date()`"
+output: 
+  html_document:
+    theme: readable
+    highlight: tango
+    code_folding: hide
+---
+
+```{r setup, include=FALSE}
+pacman::p_load(
+  here,         # File locator
+  skimr,        # get overview of data
+  tidyverse,    # data management + ggplot2 graphics 
+  janitor,      # adding totals and percents to tables
+  summarytools  # summary tool
+  )
+
+knitr::opts_chunk$set(message=FALSE, warning=FALSE)
+knitr::opts_chunk$set(results = 'asis')
+options(htmltools.dir.version = FALSE)
+
+st_options(plain.ascii = FALSE,       # Always use in Rmd documents
+           style       = "rmarkdown", # Always use in Rmd documents
+           subtitle.emphasis = FALSE, # Improves layout w/ some themes
+           descr.silent = TRUE 
+)
+```
+
+```{r}
+print(freq(iris$Species, plain.ascii = FALSE, style = "rmarkdown"),
+     method = "render")
+```
+
+```{r}
+print(freq(iris$Species, report.nas = FALSE, headings = FALSE),
+     method = "render")
+```
+```{r}
+print(freq(iris$Species, 
+     report.nas = FALSE, 
+     cumul      = FALSE, 
+     headings   = FALSE),
+     method = "render")
+```
+```{r}
+print(freq(tobacco), method = "render")
+```
+
+```{r}
+print(freq(tobacco$disease, 
+     report.nas = FALSE, 
+     cumul      = FALSE, 
+     headings   = FALSE,
+     order = "freq",
+     rows = 1:5),
+     method = "render")
+```
+```{r}
+print(ctable(x = tobacco$smoker, 
+       y = tobacco$diseased, 
+       prop = "r"),   # Show row proportions
+      method = "render")
+```
+
+```{r}
+with(tobacco, 
+     print(ctable(x = smoker, 
+                  y = diseased, 
+                  prop     = 'n',
+                  totals   = FALSE, 
+                  headings = FALSE),
+           method = "render")
+)
+```
+```{r}
+library(magrittr)
+
+tobacco %$%
+  ctable(x = smoker, y = diseased,
+         chisq = TRUE, 
+         OR = TRUE, 
+         RR = TRUE, 
+         heading = FALSE) %>% 
+  print(method = "render")
+```
+
+```{r}
+print(descr(iris,
+            stats = "all",
+            transpose = TRUE,
+            headings = FALSE),
+      method = "render")
+```
+
+```{r}
+view(dfSummary(tobacco))
+```
+

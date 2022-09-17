@@ -1,0 +1,89 @@
+---
+title: "R4DS Vectors"
+subtitle: "EPIR Handbook - Chapter 17"
+author: 
+  - "Lin Yong (yong.lin@datarx.cn)"
+date: "`r Sys.Date()`"
+output: 
+  html_document:
+    number_sections: true
+    toc: true
+    toc_depth: 2
+    toc_float:
+      collapsed: false
+      smooth_scrool: false
+    theme: paper
+    highlight: tango
+    code_folding: hide
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+pacman::p_load(
+  tidyverse    # data management + ggplot2 graphics 
+  )
+```
+
+## Vector basics
+
+1. Its **type**
+```{r}
+typeof(letters)
+typeof(1:10)
+```
+
+2. Its **lenth**
+```{r}
+x <- list("a", "b", 1:10)
+length(x)
+```
+
+**augmented vectors**
+- Factors (on top of integer vectors)
+- Dates and date-times (on top of numeric vectors)
+- Data frames and tibbles (on top of lists)
+
+## Type of atomic vector
+
+### Logical
+Three possible values: FALSE, TRUE, NA.
+
+### Numeric
+Numeric vector: Integer and double.
+
+Numbers are double by default. To make an integer, place an `L` after the number.
+
+```{r}
+typeof(1)
+typeof(1L)
+```
+Tow important differences:
+
+1. Doubles are approximations.
+2. Integers have `NA`. Doubles have: `NA`, `NaA`, `Inf` and `-Inf`
+
+```{r}
+c(-1, 0, 1) / 0
+```
+Checking for those special values: `is.finite()`, `is.infinite()`, `is.na()` and `is.nan()`.
+
+### Character
+R uses a global string pool. This means that each unique string is only stored in memory once, and every use of the string points to that representation. 
+
+
+## Using atomic vectors
+
+- Explicit coercion
+- Implicit coercion
+
+
+
+
+
+
+
+
+
+
+

@@ -1,0 +1,299 @@
+---
+title: "Missing Data"
+subtitle: "EPIR Handbook - Chapter 20"
+author: "Lin Yong (yong.lin@datarx.cn)"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    number_sections: yes
+    toc: yes
+    toc_depth: 4
+    toc_float:
+      collapsed: no
+      smooth_scrool: no
+    theme: journal
+    highlight: tango
+    code_folding: hide
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message=FALSE, warning=FALSE)
+
+pacman::p_load(
+  rio,           # import/export
+  tidyverse,     # data mgmt and viz
+  naniar,        # assess and visualize missingness
+  mice           # missing data imputation
+)
+```
+
+# Intro
+
+1. Assess missingness
+2. Filter out rows by missingness
+3. Plot missingness over time
+4. Handle how NA is displayed in plots
+5. Perform missing value imputation: MCAR, MAR, MNAR
+
+```{r import-data}
+# import the linelist
+linelist <- import("data/linelist_cleaned.rds")
+```
+
+
+# Missing values in R
+
+In R, missing values are represented by a reserved (special) value - `NA`.
+
+## Versions of NA
+
+- `NA` (https://stat.ethz.ch/R-manual/R-devel/library/base/html/NA.html)
+  - `NA` - use for dates or logical TRUE/FALSE
+  - `NA_character_` - use for characters
+  - `NA_real_` - use for numeric
+- `NULL`
+- `Nan` (e.g, $0 / 0$)
+- `Inf` (infinite, e.g, $5 / 0$
+
+# Useful functions
+
+Useful base R functions:
+
+- `is.na()` and `!is.na()`
+- `na.omit()`, base R function. Remove `NA` values from vector, or remove rows with **any** missing value from a data frame.
+- `drop_na()`, *tidyr* function
+- `na.rm = TRUE`, “na.rm” stands for “remove NA”, removing missing values from the calculation
+
+# Assess missingness in a data frame
+
+## Quantifying missingness
+
+```{r pct_of_all}
+# percent of ALL data frame values that are missing
+pct_miss(linelist)
+```
+
+```{r pct_of_row_with_missing_value}
+# Percent of rows with any value missing
+pct_miss_case(linelist)   # use n_complete() for counts
+```
+
+```{r pct_of_row_with_complete}
+# Percent of rows that are complete (no values missing)  
+pct_complete_case(linelist) # use n_complete() for counts
+```
+
+## Visualizing missingnesss
+
+The gg_miss_var() function will show you the number (or %) of missing values in each column.
+
+```{r show_missing_values, message=FALSE, warning=FALSE}
+linelist %>% 
+  gg_miss_var(show_pct = TRUE, facet = outcome)
+```
+
+Use `vis_miss()` to visualize the data frame as a heatmap, showing whether each value is missing or not. 
+
+```{r missing_value_heatmap}
+# Heatplot of missingness across the entire data frame  
+linelist %>% vis_miss()
+```
+
+## Explore and visualize missingness relationships
+
+`gg_miss_fct()`, which returns a heatmap of percent missingness in the data frame by a **factor/categorical** (or date) column.
+
+```{r gg_miss_fct}
+gg_miss_fct(linelist, age_cat5)
+```
+
+```{r gg_miss_fct_with_date}
+gg_miss_fct(linelist, date_onset)
+```
+
+## “Shadow” columns
+
+`bind_shadow()` creates a binary NA/not NA column for every existing column, and binds all these new columns to the original dataset with the appendix "_NA".
+
+```{r bind_shadow}
+shadowed_linelist <-
+  linelist %>%
+  bind_shadow()
+
+ggplot(
+  # data frame with shadow columns
+  data = shadowed_linelist,
+  # numeric or date column
+  # shadow column of interest
+  mapping = aes(x = date_hospitalisation, 
+                     colour = age_years_NA)) + 
+  # plots the density curves
+  geom_density()                          
+```
+
+The following example shows percent of weekly observations that are missing.
+
+```{r}
+outcome_missing <- linelist %>%
+  # create new week column
+  mutate(week = lubridate::floor_date(date_onset, "week")) %>%   
+  # group the rows by week
+  group_by(week) %>%                                             
+  # summarize each week
+  summarise(                                                     
+    # number of records
+    n_obs = n(),
+    # number of records missing the value
+    outcome_missing = sum(is.na(outcome) | outcome == ""),        
+    # proportion of records missing the value
+    outcome_p_miss  = outcome_missing / n_obs,                    
+    # number of records as dead
+    outcome_dead    = sum(outcome == "Death", na.rm=T),           
+    outcome_p_dead  = outcome_dead / n_obs) %>%
+    # pivot all columns except week, to long format for ggplot
+    tidyr::pivot_longer(-week, names_to = "statistic") %>% 
+    # keep only the proportion values
+    filter(stringr::str_detect(statistic, "_p_"))
+
+ggplot(data = outcome_missing) +
+  geom_line(
+    mapping = aes(
+      x = week,
+      y = value,
+      group = statistic,
+      color = statistic
+    ),
+    size = 2,
+    stat = "identity"
+  ) +
+  labs(title = "Weekly outcomes",
+       x = "Week",
+       y = "Proportion of weekly records") +
+  scale_color_discrete(name = "",
+                       labels = c("Died", "Missing outcome")) +
+  scale_y_continuous(breaks = c(seq(0, 1, 0.1))) +
+  theme_minimal() +
+  theme(legend.position = "bottom")
+```
+# Using data with missing values
+
+## Filter out rows with missing values
+
+Specify to drop rows with missingness in certain columns
+
+```{r drop_rows_with_specified_column}
+linelist %>% 
+  drop_na(date_onset) %>% # remove rows missing date_onset 
+  nrow()
+
+linelist %>% 
+  # remove rows missing values in any "date" column 
+  drop_na(contains("date")) %>% 
+  nrow()
+```
+
+## Handling `NA` in `ggplot()`
+
+In `ggplot()`, you can add `labs()` and within it a `caption =`. In the caption, you can use `str_glue()` from `stringr` package to paste values together into a sentence dynamically so they will adjust to the data.
+
+## `NA` in factors
+
+If your column of interest is a factor, use fct_explicit_na() from the forcats package to convert NA values to a character value. By default, the new value is “(Missing)”.
+
+```{r na_in_factors}
+pacman::p_load(forcats)   # load package
+
+linelist <- linelist %>% 
+  mutate(gender = fct_explicit_na(gender, na_level = "Missing"))
+
+levels(linelist$gender)
+```
+
+# Imputation
+
+Removing all missing values can cause problems in many ways.
+
+1. By removing all observations with missing values or variables with a large amount of missing data, you might reduce your power or ability to do some types of analysis. 
+
+2. Depending on why your data is missing, analysis of only non-missing data might lead to biased or misleading results. 
+
+## Type of missing data
+
+1. *Missing Completely at Random (MCAR)*. This means that there is no relationship between the probability of data being missing and any of the other variables in your data. The probability of being missing is the same for all cases. (This is a rare situation.) But, if you have strong reason to believe your data is MCAR analyzing only non-missing data without imputing won't bias your results (although you may lose some power).
+
+2. *Missing at Random (MAR)*. This name is actually a bit misleading as MAR means that your data is missing in a **systematic**, **predictable** way based on the other information you have. For example, maybe every observation in our data set with a missing value for fever was actually not recorded because every patient with chills and and aches was just assumed to have a fever so their temperature was never taken. If true, we could easily predict that every missing observation with chills and aches has a fever as well and use this information to impute our missing data. In practice, this is more of a spectrum. Maybe if a patient had both chills and aches they were more likely to have a fever as well if they didn't have their temperature taken, but not always. This is still predictable even if it isn't perfectly predictable. This is a common type of missing data.
+
+3. *Missing not at Random (MNAR)*. Sometimes, this is also called Not Missing at Random (NMAR). This assumes that the probability of a value being missing is NOT systematic or predictable using the other information we have but also isn’t missing randomly. In this situation data is missing for unknown reasons or for reasons you don’t have any information about. For example, in our dataset maybe information on age is missing because some very elderly patients either don’t know or refuse to say how old they are. In this situation, missing data on age is related to the value itself (and thus isn’t random) and isn’t predictable based on the other information we have. MNAR is complex and often the best way of dealing with this is to try to collect more data or information about why the data is missing rather than attempt to impute it.
+
+## Useful pacakges
+
+Some useful packages for imputing missing data are Mmisc, missForest (which uses random forests to impute missing data), and mice (Multivariate Imputation by Chained Equations). 
+
+## Mean Imputation
+
+In many situations replacing data with the mean can lead to bias.
+
+```{r imputation_with_mean}
+linelist <- linelist %>%
+  mutate(temp_replace_na_with_mean = replace_na(temp, mean(temp, na.rm = T)))
+```
+
+## Regression Imputation
+
+A somewhat more advanced method is to use some sort of statistical model to predict what a missing value is likely to be and replace it with the predicted value. 
+
+```{r impute_temperature_with_fever}
+simple_temperature_model_fit <- lm(temp ~ fever + age_years, data = linelist)
+
+#using our simple temperature model to predict values just for the observations where temp is missing
+predictions_for_missing_temps <- predict(simple_temperature_model_fit,
+                                        newdata = linelist %>% filter(is.na(temp))) 
+```
+
+```{r impute_temperature_with_mice}
+model_dataset <- linelist %>% select(temp, fever, age_years)  
+
+temp_imputed <- mice(model_dataset,
+                     method = "norm.predict",
+                     seed = 1,
+                     m = 1,
+                     print = F)
+
+temp_imputed_values <- temp_imputed$imp$temp
+```
+
+## LOCF and BOCF
+
+Last observation carried forward (LOCF) and baseline observation carried forward (BOCF) are imputation methods for time series/longitudinal data. The idea is to take the previous observed value as a replacement for the missing data. When multiple values are missing in succession, the method searches for the last observed value.
+
+The `fill()` function from the `tidyr` package can be used for both LOCF and BOCF imputation (however, other packages such as *HMISC*, *zoo*, and *data.table* also include methods for doing this). 
+
+## Multiple Imputation
+
+A basic explanation of the multiple imputation method:
+
+When you do multiple imputation, you create multiple datasets with the missing values imputed to plausible data values (depending on your research data you might want to create more or less of these imputed datasets, but the mice package sets the default number to 5). The difference is that rather than a single, specific value each imputed value is drawn from an estimated distribution (so it includes some randomness). As a result, each of these datasets will have slightly different different imputed values (however, the non-missing data will be the same in each of these imputed datasets). You still use some sort of predictive model to do the imputation in each of these new datasets (mice has many options for prediction methods including **Predictive Mean Matching**, **logistic regression**, and **random forest**) but the mice package can take care of many of the modeling details.
+
+Then, once you have created these new imputed datasets, you can then apply whatever statistical model or analysis you were planning to do for each of these new imputed datasets and pool the results of these models together. This works very well to reduce bias in both MCAR and many MAR settings and often results in more accurate standard error estimates.
+
+```{r multiple_imputation_with_mice}
+# imputing missing values for all variables in our model_dataset, and creating 10 new imputed datasets
+multiple_imputation = mice(
+  model_dataset,
+  seed = 1,
+  m = 10,
+  print = FALSE) 
+
+model_fit <- with(multiple_imputation, lm(temp ~ age_years + fever))
+
+base::summary(mice::pool(model_fit))
+```
+
+
+
+
+
+
+
+
+

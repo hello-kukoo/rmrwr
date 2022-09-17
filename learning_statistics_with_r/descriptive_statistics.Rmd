@@ -1,0 +1,60 @@
+---
+title: "Descriptive Statistics"
+output: html_notebook
+---
+
+```{r setup, include=FALSE}
+pacman::p_load(
+  rio,          # File import
+  here,         # File locator
+  skimr,        # get overview of data
+  tidyverse,    # data management + ggplot2 graphics 
+  gtsummary,    # summary statistics and tests
+  rstatix,      # summary statistics and statistical tests
+  janitor,      # adding totals and percents to tables
+  scales,       # easily convert proportions to percents  
+  flextable,    # converting tables to pretty images
+  lsr          # learn statistics with R companion
+  )
+```
+
+# Import data
+```{r import-data-linelist}
+# import the linelist
+# linelist <- import("data/linelist_cleaned.rds")
+load(here("learning_statistics_with_r", "data", "aflsmall.Rdata"))
+
+who()
+```
+
+```{r}
+hist(afl.margins, xlab = "Winning Margin")
+
+skim(afl.margins)
+```
+```{r}
+table(afl.finalists)
+
+lsr::modeOf(afl.finalists)
+```
+
+
+```{r}
+load(here("learning_statistics_with_r", "data", "clinicaltrial.Rdata"))
+
+str(clin.trial)
+
+summary(clin.trial)
+```
+
+```{r}
+load(here("learning_statistics_with_r", "data", "work.Rdata"))
+
+cor(work$hours, work$pay)
+
+correlate(work)
+
+correlate( work, corr.method="spearman" )
+```
+
+

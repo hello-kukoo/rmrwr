@@ -1,0 +1,184 @@
+---
+title: "Standardised Rates"
+subtitle: "EPIR Handbook - Chapter 21"
+author: "Lin Yong (yong.lin@datarx.cn)"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    number_sections: yes
+    toc: yes
+    toc_depth: 4
+    toc_float:
+      collapsed: no
+      smooth_scrool: no
+    theme: journal
+    highlight: tango
+    code_folding: hide
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message=FALSE, warning=FALSE)
+
+pacman::p_load(
+     rio,                 # import/export data
+     here,                # locate files
+     tidyverse,           # data management and visualization
+     stringr,             # cleaning characters and strings
+     frailtypack,         # needed for dsr, for frailty models
+     dsr,                 # standardise rates
+     PHEindicatormethods) # alternative for rate standardisation
+```
+
+# Intro
+
+## Import data
+```{r import-data}
+# import demographics for country A directly from Github
+A_demo <- import("data/country_demographics.csv") %>% 
+  mutate(Country = "A")
+
+A_demo <- A_demo %>% 
+  mutate(
+    age_cat5 = str_replace_all(age_cat5, "\\+", "")    # remove "+"
+  )
+
+
+# import deaths for country A directly from Github
+A_deaths <- import("data/deaths_countryA.csv")
+
+# import demographics for country B directly from Github
+B_demo <- import("data/country_demographics_2.csv")  %>% 
+  mutate(Country = "B")
+
+# import deaths for country B directly from Github
+B_deaths <- import("data/deaths_countryB.csv")
+
+# import demographics for country B directly from Github
+standard_pop_data <- import("data/world_standard_population_by_sex.csv")
+```
+
+## Clean the data
+
+```{r clean-data}
+pop_countries <- A_demo %>%  # begin with country A dataset
+     bind_rows(B_demo) %>%  # bind rows, because cols are identically named
+     pivot_longer(                      # pivot longer
+          cols = c(m, f),               # columns to combine into one
+          names_to = "Sex",             # name for new column containing the category ("m" or "f") 
+          values_to = "Population") %>%  # name for new column containing the numeric values pivoted
+     mutate(Sex = recode(Sex,            # re-code values for clarity
+          "m" = "Male",
+          "f" = "Female"))
+
+deaths_countries <- A_deaths %>%    # begin with country A deaths dataset
+     bind_rows(B_deaths) %>%        # bind rows with B dataset, because cols are identically named
+     pivot_longer(                  # pivot longer
+          cols = c(Male, Female),        # column to transform into one
+          names_to = "Sex",              # name for new column containing the category ("m" or "f") 
+          values_to = "Deaths") %>%      # name for new column containing the numeric values pivoted
+     rename(age_cat5 = AgeCat)      # rename for clarity
+
+country_data <- pop_countries %>% 
+     left_join(deaths_countries, by = c("Country", "age_cat5", "Sex"))
+
+country_data <- country_data %>% 
+  mutate(
+    Country = fct_relevel(Country, "A", "B"),
+    Sex = fct_relevel(Sex, "Male", "Female"),
+    age_cat5 = fct_relevel(
+      age_cat5,
+      "0-4", "5-9", "10-14", "15-19",
+      "20-24", "25-29",  "30-34", "35-39",
+      "40-44", "45-49", "50-54", "55-59",
+      "60-64", "65-69", "70-74",
+      "75-79", "80-84", "85")) %>% 
+          
+  arrange(Country, age_cat5, Sex)
+
+# Reference population
+standard_pop_data <- import("data/world_standard_population_by_sex.csv")
+
+# Remove specific string from column values
+standard_pop_clean <- standard_pop_data %>%
+  rename(age_cat5 = AgeGroup) %>%    # change col name to "pop", as this is expected by dsr package
+
+  mutate(
+    age_cat5 = str_replace_all(age_cat5, "years", ""),   # remove "year"
+    age_cat5 = str_replace_all(age_cat5, "plus", ""),    # remove "plus"
+    age_cat5 = str_replace_all(age_cat5, " ", "")) %>%   # remove " " space
+     
+  rename(pop = WorldStandardPopulation)   # change col name to "pop", as this is expected by dsr package
+
+all_data <- left_join(country_data, standard_pop_clean, by=c("age_cat5", "Sex"))
+```
+
+# **dsr** package
+
+## Standardized rates
+
+```{r dsr-standardized-rates}
+# Calculate rates per country directly standardized for age and sex
+mortality_rate <- dsr::dsr(
+     data = country_data,  # specify object containing number of deaths per stratum
+     event = Deaths,       # column containing number of deaths per stratum 
+     fu = Population,      # column containing number of population per stratum
+     subgroup = Country,   # units we would like to compare
+     age_cat5,             # other columns - rates will be standardized by these
+     Sex,
+     refdata = standard_pop_clean, # reference population data frame, with column called pop
+     method = "gamma",      # method to calculate 95% CI
+     sig = 0.95,            # significance level
+     mp = 100000,           # we want rates per 100.000 population
+     decimals = 2)          # number of decimals)
+
+
+# Print output as nice-looking HTML table
+knitr::kable(mortality_rate) # show mortality rate before and after direct standardization
+```
+
+
+## Standardized rates ratios
+
+```{r dsr-standardized-rates-ratios}
+# Calculate RR
+mortality_rr <- dsr::dsrr(
+     data = country_data, # specify object containing number of deaths per stratum
+     event = Deaths,      # column containing number of deaths per stratum 
+     fu = Population,     # column containing number of population per stratum
+     subgroup = Country,  # units we would like to compare
+     age_cat5,
+     Sex,                 # characteristics to which we would like to standardize 
+     refdata = standard_pop_clean, # reference population, with numbers in column called pop
+     refgroup = "B",      # reference for comparison
+     estimate = "ratio",  # type of estimate
+     sig = 0.95,          # significance level
+     mp = 100000,         # we want rates per 100.000 population
+     decimals = 2)        # number of decimals
+
+# Print table
+knitr::kable(mortality_rr) 
+```
+
+
+## Standardized rates difference
+
+```{r dsr-standardized-rates-difference}
+# Calculate RD
+mortality_rd <- dsr::dsrr(
+     data = country_data,       # specify object containing number of deaths per stratum
+     event = Deaths,            # column containing number of deaths per stratum 
+     fu = Population,           # column containing number of population per stratum
+     subgroup = Country,        # units we would like to compare
+     age_cat5,                  # characteristics to which we would like to standardize
+     Sex,                        
+     refdata = standard_pop_clean, # reference population, with numbers in column called pop
+     refgroup = "B",            # reference for comparison
+     estimate = "difference",   # type of estimate
+     sig = 0.95,                # significance level
+     mp = 100000,               # we want rates per 100.000 population
+     decimals = 2)              # number of decimals
+
+# Print table
+knitr::kable(mortality_rd) 
+```
+

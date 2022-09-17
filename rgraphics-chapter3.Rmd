@@ -1,0 +1,266 @@
+---
+title: "Chapter 3 Bar Graphs"
+subtitle: "R Graphics Cookbook - Chapter 3"
+author: "Lin Yong (yong.lin@datarx.cn)"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    number_sections: yes
+    toc: yes
+    toc_depth: 4
+    toc_float:
+      collapsed: no
+      smooth_scrool: no
+    theme: flatly
+    highlight: tango
+    code_folding: hide
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message=FALSE, warning=FALSE)
+
+pacman::p_load(
+  gcookbook,    # Load gcookbook for the pg_mean data set
+  tidyverse
+)
+```
+
+## Making a Basic Bar Graph
+
+```{r}
+ggplot(pg_mean, aes(x = group, y = weight)) +
+  geom_col()
+```
+
+By default, bar graphs use a dark grey for the bars. To use a color fill, use `fill`. Also, by default, there is no outline around the fill. To add an outline, use `colour`. 
+
+```{r}
+ggplot(pg_mean, aes(x = group, y = weight)) +
+  geom_col(fill = "lightblue", color = "black")
+```
+
+## Grouping Bars Together
+
+Use the cabbage_exp data set, which has two categorical variables, `Cultivar` and `Date`, and one continuous variable, `Weight`:
+
+
+```{r}
+knitr::kable(head(cabbage_exp))
+
+cabbage_exp %>% 
+  ggplot(aes(x = Date, y = Weight, fill = Cultivar)) +
+    geom_col(position = "dodge", colour = "black") +
+    scale_fill_brewer(palette = "Pastel1")
+```
+
+## Making a Bar Graph of Counts
+
+Use `geom_bar()` without mapping anything to `y`:
+
+```{r}
+# Equivalent to using geom_bar(stat = "bin")
+diamonds %>% 
+  ggplot(aes(x = cut)) +
+    geom_bar()
+```
+
+```{r}
+ggplot(diamonds, aes(x = carat, fill = cut)) +
+  geom_histogram()
+```
+
+
+## Using Colors in a Bar Graph
+
+Map the appropriate variable to the fill aesthetic. Note that setting occurs outside of `aes()`, while mapping occurs within `aes()`:
+
+```{r}
+upc <- uspopchange %>%
+  arrange(desc(Change)) %>%
+  slice(1:15)
+
+upc %>% 
+  ggplot(aes(x = reorder(Abb, Change), 
+             y = Change, 
+             fill = Region)) +
+    geom_col(colour = "black") +
+    scale_fill_manual(values = c("#669933", "#FFCC66")) +
+    xlab("State")
+```
+
+## Coloring Negative and Positive Bars Differently
+
+```{r}
+climate_sub <- climate %>%
+  filter(Source == "Berkeley" & Year >= 1900) %>%
+  mutate(pos = Anomaly10y >= 0)
+```
+
+```{r}
+climate_sub %>% 
+  ggplot(aes(x = Year, y = Anomaly10y, fill = pos)) +
+    geom_col(position = "identity", colour = "black", size = 0.25) +
+    scale_fill_manual(values = c("#CCEEFF", "#FFDDDD"), guide = "none")
+```
+
+
+## Adjusting Bar Width and Spacing
+
+To make the bars narrower or wider, set width in geom_col(). The default value is 0.9; larger values make the bars wider, and smaller values make the bars narrower:
+
+```{r}
+pg_mean %>% 
+  ggplot(aes(x = group, y = weight)) +
+    geom_col(width = 0.5)
+```
+
+For grouped bars, the default is to have no space between bars within each group. To add space between bars within a group, make width smaller and set the value for `position_dodge` to be larger than width:
+
+```{r}
+cabbage_exp %>% 
+  ggplot(aes(x = Date, y = Weight, fill = Cultivar)) +
+    geom_col(width = 0.6, position = position_dodge(0.7))
+```
+
+
+## Making a Stacked Bar Graph
+
+Use `geom_bar()` and map a variable `fill`.
+
+```{r}
+cabbage_exp %>% 
+  ggplot(aes(x = Date, y = Weight, fill = Cultivar)) +
+    geom_col(width = 0.6, colour = "black") +
+    scale_fill_brewer(palette = "Pastel1")
+```
+
+Reverse the legend and stack:
+
+```{r}
+cabbage_exp %>% 
+  ggplot(aes(x = Date, y = Weight, fill = Cultivar)) +
+    geom_col(width = 0.6, 
+             position = position_stack(reverse = TRUE)) +
+    guides(fill = guide_legend(reverse = TRUE))
+```
+
+## Making a Proportional Stacked Bar Graph
+
+Make a stacked bar graph that shows proportions (also called a 100% stacked bar graph). Use `geom_col(position = "fill")`. With `position = "fill"`, the `y` values will be scaled to go from 0 to 1. To print the labels as percentages, use `scale_y_continuous(labels = scales::percent)`
+
+```{r}
+cabbage_exp %>% 
+  ggplot(aes(x = Date, y = Weight, fill = Cultivar)) +
+    geom_col(width = 0.7, 
+             colour = "black", 
+             position = "fill") +
+    scale_y_continuous(labels = scales::percent) +
+    scale_fill_brewer(palette = "Pastel1")
+```
+
+## Adding Labels to a Bar Graph
+
+Add `geom_text()` to your graph. It requires a mapping for `x`, `y`, and the text itself. By setting `vjust` (the vertical justification), it is possible to move the text above or below the tops of the bars:
+
+```{r}
+cabbage_exp %>% 
+  ggplot(aes(x = interaction(Date, Cultivar), y = Weight)) +
+    geom_col() +
+    geom_text(aes(label = Weight), vjust = 1.5, colour = "white")
+```
+
+Putting labels on stacked bar graphs requires finding the cumulative sum for each stack. To do this, first make sure the data is sorted properly – if it isn’t, the cumulative sum might be calculated in the wrong order. We’ll use the `arrange()` function from the `dplyr` package. 
+
+```{r}
+# Sort by the Date and Cultivar columns
+ce <- cabbage_exp %>%
+  arrange(Date, rev(Cultivar)) %>% 
+  group_by(Date) %>%
+  mutate(label_y = cumsum(Weight) - 0.5 * Weight)
+
+ce %>% 
+  ggplot(aes(x = Date, y = Weight, fill = Cultivar)) +
+    geom_col(colour = 'black') +
+    geom_text(aes(y = label_y, 
+                  label = paste(format(Weight, nsmall = 2), 
+                                "kg")), 
+              size = 4) +
+  scale_fill_brewer(palette = "Pastel1")
+```
+
+## Making a Cleveland Dot Plot
+
+Cleveland dot plots are an alternative to bar graphs that reduce visual clutter and can be easier to read.
+
+The simplest way to create a dot plot is to use `geom_point()`:
+
+```{r}
+# Take the top 25 from the tophitters data set
+tophit <- tophitters2001[1:25, ] 
+
+ggplot(tophit, aes(x = avg, y = name)) +
+  geom_point()
+```
+
+By default, the items on the given axis will be ordered however is appropriate for the data type. A character vector is ordered alphabetically. If it were a factor, it would use the order defined in the factor levels. 
+
+```{r}
+ggplot(tophit, aes(x = avg, y = reorder(name, avg))) +
+  geom_point(size = 3) +  # Use a larger dot
+  theme_bw() +
+  theme(
+    panel.grid.major.x = element_blank(),
+    panel.grid.minor.x = element_blank(),
+    panel.grid.major.y = element_line(colour = "grey60", linetype = "dashed")
+  )
+```
+
+```{r}
+ggplot(tophit, aes(x = reorder(name, avg), y = avg)) +
+  geom_point(size = 3) +  # Use a larger dot
+  theme_bw() +
+  theme(
+    panel.grid.major.y = element_blank(),
+    panel.grid.minor.y = element_blank(),
+    panel.grid.major.x = element_line(colour = "grey60", linetype = "dashed"),
+    axis.text.x = element_text(angle = 60, hjust = 1)
+  )
+```
+
+```{r}
+# Get the names, sorted first by lg, then by avg
+nameorder <- tophit$name[order(tophit$lg, tophit$avg)]
+
+# Turn name into a factor, with levels in the order of nameorder
+tophit$name <- factor(tophit$name, levels = nameorder)
+
+ggplot(tophit, aes(x = avg, y = name)) +
+  geom_segment(aes(yend = name), xend = 0, colour = "grey50") +
+  geom_point(size = 3, aes(colour = lg)) +
+  scale_colour_brewer(palette = "Set1", limits = c("NL", "AL")) +
+  theme_bw() +
+  theme(
+    # No horizontal grid lines
+    panel.grid.major.y = element_blank(),   
+    legend.position = c(1, 0.55),
+    # Put legend inside plot area
+    legend.justification = c(1, 0.5)
+  )
+```
+
+Another way to separate the two groups is to use facets.
+
+```{r}
+tophit %>%  
+  ggplot(aes(x = avg, y = name)) +
+    geom_segment(aes(yend = name), xend = 0, 
+                 colour = "grey50") +
+    geom_point(size = 3, aes(colour = lg)) +
+    scale_colour_brewer(palette = "Set1", 
+                        limits = c("NL", "AL"), 
+                        guide = FALSE) +
+    theme_bw() +
+    theme(panel.grid.major.y = element_blank()) +
+    facet_grid(lg ~ ., scales = "free_y", space = "free_y")
+```
+

@@ -1,0 +1,90 @@
+---
+title: "Ebola Outbreak Dashboard"
+output: 
+  flexdashboard::flex_dashboard:
+    vertical_layout: fill
+runtime: shiny
+---
+
+```{r global, include=FALSE}
+pacman::p_load(
+  rio,             # data import/export     
+  here,            # locate files
+  tidyverse,       # data management and visualization
+  flexdashboard,   # dashboard versions of R Markdown reports
+  flextable,
+  incidence2,
+  epicontacts,
+  DT,
+  janitor,
+  shiny,           # interactive figures
+  plotly,          # interactive figures
+  tsibble
+)
+
+# import the linelist
+linelist <- import(here("data", "linelist_cleaned.rds"))
+```
+
+Outbreak dashboard {.sidebar}
+-----------------------------------------------------------------------
+
+This is a sidebar that can be viewed from all pages.
+
+You could just have text here.
+
+Or if using **shiny** with **flexdashboard**, you might put your input controls here.
+
+
+Column 1 {data-width=350}
+-----------------------------------------------------------------------
+
+### Summary and actions items
+ This report is for the Incident COmmand team of the fictional outbreak of Ebola cases. **As of `r format(max(linelist$date_hospitalisation, na.rm=T), "%d %B")` there have been `r nrow(linelist)` cases reported as hospitalized.**
+ 
+ * Several previously-unaffected areas to the West are now reporting cases
+ * Internal reviews suggest that better communication is needed between district and provincial level data management teams
+ * Safe and dignified burial teams are reporting difficulties
+
+
+### Review data
+
+#### Cases by hospitals
+
+```{r}
+linelist %>% 
+  count(hospital) %>% 
+  adorn_totals() %>% 
+  rename("Hospital" = hospital, 
+         "Cases" = n) %>%
+  knitr::kable()
+```
+
+#### Display Epicurve of cases admitted to:
+
+```{r}
+hospital_choices <- rev(unique(linelist$hospital))
+
+selectInput("hospital_choice", label = "",
+            choices = hospital_choices, 
+            selected = hospital_choices[[1]])
+```
+
+Column 2 
+-----------------------------------------------------------------------
+
+### Epdimic curve by age
+
+```{r}
+renderPlot({
+  age_outbreak <- incidence(
+    linelist %>% filter(hospital == input$hospital_choice),
+    date_index = date_onset, 
+    interval = "week", 
+    groups = age_cat)
+  
+  plot(age_outbreak, fill = age_cat, col_pal = muted, 
+       title = str_glue("Cases admitted to {input$hospital_choice}"))
+})
+```
+

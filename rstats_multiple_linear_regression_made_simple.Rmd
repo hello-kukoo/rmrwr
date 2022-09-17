@@ -1,0 +1,302 @@
+---
+title: "Multiple linear regression made simple"
+subtitle: https://www.r-bloggers.com/2021/10/multiple-linear-regression-made-simple/
+author: "Lin Yong (yong.lin@datarx.cn)"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    number_sections: yes
+    toc: yes
+    toc_depth: 4
+    toc_float:
+      collapsed: no
+      smooth_scrool: no
+    theme: flatly
+    highlight: tango
+    code_folding: hide
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message=FALSE, warning=FALSE)
+
+pacman::p_load(
+  tidyverse,
+  skimr,
+  visreg,
+  performance,
+  see,
+  ggstatsplot,
+  equatiomatic
+)
+
+```
+
+```{r echo=FALSE}
+dat <- mtcars
+
+## Recoding dat$vs
+dat$vs <- as.character(dat$vs)
+dat$vs <- fct_recode(dat$vs,
+  "V-shaped" = "0",
+  "Straight" = "1"
+)
+
+## Recoding dat$am
+dat$am <- as.character(dat$am)
+dat$am <- fct_recode(dat$am,
+  "Automatic" = "0",
+  "Manual" = "1"
+)
+```
+
+# Introduction
+
+- Descriptive statistics is a branch of statistics that allows to describe your data at hand. 
+- Inferential statistics (with the popular hypothesis tests and confidence intervals) is another branch of statistics that allows to make inferences, that is, to draw conclusions about a population based on a sample. 
+- The last is about **modeling the relationship between two or more variables**. The most common statistical tool to describe and evaluate the link between variables is linear regression.
+
+There are two types of linear regression:
+
+- Simple linear regression is a statistical approach that allows to assess the linear relationship between two quantitative variables. More precisely, it enables the relationship to be quantified and its significance to be evaluated.
+- Multiple linear regression is a generalization of simple linear regression, in the sense that this approach makes it possible to evaluate the linear relationships between a response variable (quantitative) and several explanatory variables (quantitative or qualitative).
+
+
+# Simple linear regression
+
+Simple linear regression is a procedure in which:
+
+- one of the variable is considered the response or the variable to be explained. It is also called dependent variable, and is represented on the $y$-axis
+- the other variable is the explanatory or also called independent variable, and is represented on the $x$-axis
+
+Simple linear regression allows to **evaluate the existence of a** *linear* **relationship between two variables** and to quantify this link. It allows to **quantify by what quantity the response/dependent variable varies when the explanatory/independent variable increases by one unit**.
+
+We are interested in assessing whether there is a linear relationship between the distance traveled with a gallon of fuel and the weight of cars. For this example, we use the `mtcars` dataset.
+
+```{r}
+skim(dat)
+```
+
+```{r}
+dat %>% ggplot(aes(x = wt, y = mpg)) +
+  geom_point() +
+  labs(
+    y = "Miles per gallon",
+    x = "Car's weight (1000 lbs)"
+  ) +
+  theme_minimal()
+```
+
+## Pinciple
+
+The principle of simple linear regression is to **find the line** (i.e., determine its equation) **which passes as close as possible to the observations**, that is, the set of points formed by the pairs ($x_i$, $y_i$).
+
+## Equation
+
+The regression model can be written in the form of the equation:
+
+$$Y = \beta_0 + \beta_1 X + \epsilon$$
+
+- $Y$ the dependent variable
+- $X$ the independent variable
+- $\beta_0$ the intercept (the mean value of $Y$ when $x$=0), also sometimes denoted $\alpha$
+- $\beta_1$ the slope (the expected increase in $Y$ when $X$ increases by one unit)
+- $\epsilon$ the residuals (the error term of mean 0 which describes the variations of $Y$ not captured by the model, also referred as the noise)
+
+To perform a linear regression in R, we use the `lm()`
+function (which stands for linear model). The function requires to set the dependent variable first then the independent variable, separated by a tilde (`~`).  The `summary()` function gives the results of the model:
+
+```{r}
+model <- lm(mpg ~ wt, data = dat)
+
+summary(model)
+```
+
+## Significance of the relationship
+
+To assess the significance of the linear relationship, we divide the slope by its standard error. This ratio is the test statistic and follows a Student distribution with $n$−2 degrees of freedom.
+
+The null and alternative hypotheses are:
+
+- $H_0$: $\beta_1=0$ (there is no (linear) relationship between the two variables)
+- $H_1$: $\beta_1 \ne 0$ (there is a (linear) relationship between the two variables)
+
+The standard error and the test statistic are shown in the column `Std. Error` and `t value` in the table Coefficients.  The information is provided in the column `Pr(>|t|)` of the Coefficients table, which is the `p-value` of the test. As for any statistical test, if the `p-value` is greater than or equal to the significance level (usually $\alpha$=0.05), we do not reject the null hypothesis, and if the p-value is lower than the significance level, we reject the null hypothesis. 
+
+## Correlation does not imply causation
+
+Be careful that a significant relationship between two variables does not necessarily mean that there is an influence of one variable on the other or that there is a causal effect between these two variables!
+
+A significant relationship between $X$ and $Y$ can appear in several cases:
+
+- $X$ causes $Y$
+- $Y$ causes $X$
+- a third variable cause $X$ and $Y$
+- a combination of these three reasons
+
+## Visualization
+
+Via the `visreg()` function from the package of the same name:
+
+```{r}
+visreg(model)
+```
+
+# Multiple linear regression
+
+Multiple linear regression is a generalization of simple linear regression, in the sense that this approach makes it possible to relate one variable with several variables through a linear function in its parameters.
+
+## Principle
+
+```{r}
+ggplot(dat) +
+  aes(x = wt, y = mpg, colour = hp, size = disp) +
+  geom_point() +
+  scale_color_gradient() +
+  labs(
+    y = "Miles per gallon",
+    x = "Weight (1000 lbs)",
+    color = "Horsepower",
+    size = "Displacement"
+  ) +
+  theme_minimal()
+```
+
+In multiple linear regression, the estimated relationship between the dependent variable and an explanatory variable is an adjusted relationship, that is, free of the linear effects of the other explanatory variables.
+
+```{r}
+model2 <- lm(mpg ~ wt + hp + disp, data = dat)
+
+summary(model2)
+```
+
+## Equation
+
+Multiple linear regression models are defined by the equation:
+
+$$𝑌=𝛽_0+𝛽_1𝑋_1+𝛽_2𝑋_2+⋯+𝛽_𝑝𝑋_𝑝+𝜖$$
+
+```{r}
+model3 <- lm(mpg ~ wt + vs, data = dat)
+
+summary(model3)
+```
+
+## Conditions of application
+
+As for simple linear regression, multiple linear regression requires some conditions of application for the model to be usable and the results to be interpretable. Conditions for simple linear regression also apply to multiple linear regression, that is:
+
+
+1. Linearity of the relationships between the dependent and independent variables
+2. Independence of the observations
+3. Normality of the residuals
+4. Homoscedasticity of the residuals
+5. No influential points (outliers)
+
+But there is one more condition for multiple linear regression:
+
+6. No multicollinearity: **Multicollinearity** arises when there is a strong linear correlation between the independent variables, conditional on the other variables in the model. It is important to check it because it may lead to an imprecision or an instability of the estimated parameters when a variable changes.
+
+```{r}
+check_model(model2)
+```
+
+# How to choose a good linear model?
+
+The three most common tools to select a good linear model are according to:
+
+- the $p$-value associated to the model,
+- the coefficient of determination $R^2$,
+- the Akaike Information Criterion
+
+## $P$-value associated to the model
+
+This $p$-value indicates if the model is **better than a model with only the intercept**.  The hypotheses of the test (called F-test) are:
+
+- $H_0$: $\beta_1 =\beta_2 = ⋯ =\beta_p = 0$
+- $H_1$: at least one coefficient $\beta \ne 0$
+
+This $p$-value can be found at the bottom of the summary() output:
+
+```{r}
+summary(model2)
+```
+
+```{r echo=FALSE}
+# Function to extract the overall ANOVA p-value out of a linear model object
+lmp <- function (modelobject) {
+	if (class(modelobject) != "lm") stop("Not an object of class 'lm' ")
+	f <- summary(modelobject)$fstatistic
+	p <- pf(f[1],f[2],f[3],lower.tail=F)
+	attributes(p) <- NULL
+	return(p)
+}
+
+model2.p_value <- lmp(model2)
+```
+
+
+The $p$-value $=$ $`r model2.p_value`$. The null hypothesis is rejected, we can conclude that our model is better than a model with only the intercept because at least one coefficient $\beta$ is significantly different from 0. If this $p$-value $ > 0.05$ for one of your model, it means that none of the variables you selected help in explaining the dependent variable. 
+
+
+## Coefficient of determination $R^2$
+
+The coefficient of determination, $R^2$, is a measure of the **goodness of fit of the model**. It measures the proportion of the total variability that is explained by the model, or how well the model fits the data.
+
+$R^2$ varies between 0 and 1:
+
+- $R^2 = 0$: the model explains nothing
+- $R^2 = 1$: the model explains everything
+- $0 \lt R^2 \lt 1$: the model explains part of the variability
+- the higher the $R^2$, the better the model explains the dependent variable. As a rule of thumb, a $R^2 \gt 0.7$ indicates a good fit of the model
+
+$R^2$ is displayed at the bottom of the `summary()` output or can be extracted with `summary(model2)$r.squared`.
+
+## Parsimony
+
+A **parsimonious model (few variables) is usually preferred** over a complex model (many variables). There are two ways to obtain a parsimonious model from a model with many independent variables:
+
+1. We can **iteratively remove the independent variable least significantly related to the dependent variable** (i.e., the one with the highest $p$-value in an analysis of variance table) until all of them are significantly associated to the response variable, or
+
+2. We can select the model based on the **Akaike Information Criterion (AIC)**. AIC expresses a desire to fit the model with the smallest number of coefficients possible and allows to compare models. According to this criterion, the best model is the one with the lowest AIC. This criterion is based on a compromise between the quality of the fit and its complexity. We usually start from a global model with many independent variables, and the procedure (referred as stepwise algorithm) automatically compares models then selects the best one according to the AIC.
+
+```{r step-AIC}
+model4 <- lm(mpg ~ ., data = dat)
+
+model4 <- step(model4, trace = FALSE)
+
+summary(model4)
+```
+
+# Visualizations
+
+1. `visreg()` which illustrates the relationships between the dependent and independent variables in different plots.
+
+```{r visreg}
+visreg(model4)
+```
+
+2. `ggcoefstats()` which illustrates the results in one single plot.
+
+```{r}
+ggcoefstats(model4)
+```
+
+- when the solid line does not cross the vertical dashed line, the estimates is significantly different from 0 at the 5% significance level (i.e., $p$-value < 0.05)
+- furthermore, a point to the right (left) of the vertical dashed line means that there is a positive (negative) relationship between the two variables
+- the more extreme the point, the stronger the relationship
+
+# One More Thing
+
+## Extract model's equation
+
+The `extract_eq()` function from the `{equatiomatic}` package:
+
+```{r}
+extract_eq(model4,
+  use_coefs = TRUE, # display coefficients
+  wrap = TRUE, # multiple lines
+  terms_per_line = 2
+)
+
+```
+

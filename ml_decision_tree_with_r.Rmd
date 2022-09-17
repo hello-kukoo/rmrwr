@@ -1,0 +1,92 @@
+---
+title: 'A Complete Guide to Decision Trees with R'
+subtitle: https://www.r-bloggers.com/2021/02/machine-learning-with-r-a-complete-guide-to-decision-trees/
+author: "Lin Yong (yong.lin@datarx.cn)"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    number_sections: yes
+    toc: yes
+    toc_depth: 4
+    toc_float:
+      collapsed: no
+      smooth_scrool: no
+    theme: journal
+    highlight: tango
+    code_folding: hide
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+
+pacman::p_load(
+  dplyr,
+  caTools,
+  caret,
+  rpart,
+  rpart.plot,
+  skimr
+)
+```
+
+# Introduction to Decision Trees
+
+To predict class labels, the decision tree starts from the root (root node). Calculating which attribute should represent the root node is straightforward and boils down to figuring which attribute best separates the training records. The calculation is done with the gini impurity formula. It’s simple math, but can get tedious to do manually if you have many attributes.
+
+After determining the root node, the tree “branches out” to better classify all of the impurities found in the root node.
+
+![](https://i0.wp.com/appsilon.com/wp-content/uploads/2021/02/1-2.png?w=450&ssl=1)
+
+
+# Data loading and Preparation
+
+```{r load-data}
+head(iris)
+
+skim(iris)
+```
+
+we have to do before continuing to predictive modeling is to split this dataset randomly into training and testing subsets, to do a split in 75:25 ratio:
+
+```{r split-data-set}
+set.seed(42)
+sample_split <- sample.split(Y = iris$Species, SplitRatio = 0.75)
+train_set <- subset(x = iris, sample_split == TRUE)
+test_set <- subset(x = iris, sample_split == FALSE)
+```
+
+# Modeling
+
+Using the `rpart`
+library to build the model. The syntax for building models is identical as with linear and logistic regression. You'll need to put the target variable on the left and features on the right, separated with the `~` sign. If you want to use all features, put a dot (`.`) instead of feature names.
+
+```{r modeling}
+model <- rpart(Species ~ ., data = train_set, method = "class")
+model
+```
+
+Can use the `rpart.plot` package to visualize the tree:
+
+```{r visulize-tree}
+rpart.plot(model)
+```
+
+Decision trees are also useful for examining feature importance, ergo, how much predictive power lies in each feature. You can use the `varImp()` function to find out. 
+
+```{r feature-importance}
+importances <- varImp(model)
+importances %>%
+  arrange(desc(Overall))
+```
+
+# Making prediction
+
+```{r making-prediction}
+preds <- predict(model, newdata = test_set, type = "class")
+preds
+
+confusionMatrix(test_set$Species, preds)
+```
+
+
+

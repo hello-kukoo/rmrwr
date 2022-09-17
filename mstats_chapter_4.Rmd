@@ -1,0 +1,123 @@
+---
+title: "第四章 多个样本均数比较的方差分析"
+subtitle: "医学统计学 - Chapter 4"
+author: "Lin Yong (yong.lin@datarx.cn)"
+date: "`r Sys.Date()`"
+output: 
+  html_document:
+    number_sections: true
+    toc: true
+    toc_depth: 2
+    toc_float:
+      collapsed: false
+      smooth_scrool: false
+    theme: readable
+    highlight: tango
+    code_folding: hide
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(warning = FALSE, message = FALSE, echo = TRUE)
+
+pacman::p_load(
+  here,         # File locator
+  haven,        # read spss data
+  skimr,        # get overview of data
+  tidyverse,    # data management + ggplot2 graphics 
+  gtsummary,    # summary statistics and tests
+  rstatix,      # summary statistics and statistical tests
+  janitor,      # adding totals and percents to tables
+  scales,       # easily convert proportions to percents  
+  flextable     # converting tables to pretty images
+  )
+```
+
+## 单因子方差分析 {.tabset}
+
+```{r read-data}
+#读取数据
+rdl_df <- read_sav("data/medical-stats/例04-02.sav", encoding = "GBK")
+```
+
+### Mean/Var
+```{r quick-mean}
+##对不规则数组应用指定的函数，快速计算每组的均值，方差，和样本大小
+# tapply(rdl_df$ldl_c, rdl_df$group, FUN = mean)
+# tapply(rdl_df$ldl_c, rdl_df$group, FUN = var)
+
+rdl_df %>% 
+  group_by(group) %>% 
+  summarize (
+    n       = n(),                                                
+    ldl_c_max   = max(ldl_c, na.rm = T),
+    ldl_c_mean  = round(mean(ldl_c, na.rm=T), digits = 3),  
+    ldl_c_sd    = round(sd(ldl_c, na.rm = T), digits = 3),  
+    ldl_c_var   = round(var(ldl_c, na.rm = T), digits = 3)
+  ) %>% 
+  flextable()
+```
+### Plot
+```{r boxplot-sample}
+boxplot(
+  rdl_df$ldl_c ~ rdl_df$group,
+  col=c(2:5),
+  ylab="LDL-C",
+  xlab="Group")
+```
+
+### Oneway F
+
+```{r oneway-f-test}
+## 使用oneway.test()函数进行F检验，注意var.equal 默认是 FALSE，也就是说方差可以不相等(此时即为Welch检验)，但是提供的信息相对较少。
+oneway.test(
+  rdl_df$ldl_c ~ rdl_df$group,
+  var.equal=T)
+```
+
+### aov()
+```{r aov-f-test}
+#使用aov()函数进行F检验，可以获取完整地参数信息，这里要注意aov()里面提供的group信息
+#最好不要是数值形式的分组，否则结果容易当作线性回归处理，导致与预期不一致，可以用
+#as.character()将数字转换为字串形式的再使用
+aov.out <- aov(rdl_df$ldl_c ~ as.character(rdl_df$group))
+
+summary.aov(aov.out)
+```
+
+### aov.plot
+
+```{r}
+##用aov()的残差诊断图检验方差分析结果
+par(mfrow=c(2,2))
+plot(aov.out)
+```
+
+
+## 双因子方差分析
+
+```{r read-data}
+#读取数据
+sarc_df <- read_sav("data/medical-stats/例04-04.sav", encoding = "GBK")
+
+sarc_df %>% 
+  group_by(treat) %>% 
+  summarize (
+    mean  = round(mean(weight, na.rm=T), digits = 3),  
+    sd    = round(sd(weight, na.rm = T), digits = 3),  
+    var   = round(var(weight, na.rm = T), digits = 3)
+  ) 
+```
+```{r}
+sarc_aov.out<-aov(
+  sarc_df$weight ~ factor(as.character(sarc_df$treat)) + factor(as.character(sarc_df$group))
+  )
+
+summary.aov(sarc_aov.out)
+```
+
+```{r}
+##用aov()的残差诊断图检验方差分析结果
+par(mfrow=c(2,2))
+plot(sarc_aov.out)
+```
+

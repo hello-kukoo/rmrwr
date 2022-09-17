@@ -1,0 +1,150 @@
+---
+title: "Logistic Regression with R"
+subtitle: https://www.r-bloggers.com/2021/01/machine-learning-with-r-a-complete-guide-to-logistic-regression/
+author: "Lin Yong (yong.lin@datarx.cn)"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    number_sections: yes
+    toc: yes
+    toc_depth: 4
+    toc_float:
+      collapsed: no
+      smooth_scrool: no
+    theme: journal
+    highlight: tango
+    code_folding: hide
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message=FALSE, warning=FALSE)
+
+pacman::p_load(
+  titanic,
+  Amelia,
+  dplyr,
+  modeest,
+  ggplot2,
+  cowplot,
+  mice,
+  caTools,
+  caret,
+  skimr,
+  naniar
+)
+```
+
+## Load data
+```{r load-data}
+df <- titanic_train
+skim(df)
+```
+
+## Handling Missing Data
+
+```{r process-data}
+df$Cabin[df$Cabin == ""] <- NA
+df$Embarked[df$Embarked == ""] <- NA
+
+df$Title <- gsub("(.*, )|(\\..*)", "", df$Name)
+rare_titles <- c("Dona", "Lady", "the Countess", "Capt", "Col", "Don", "Dr", "Major", "Rev", "Sir", "Jonkheer")
+df$Title[df$Title == "Mlle"] <- "Miss"
+df$Title[df$Title == "Ms"] <- "Miss"
+df$Title[df$Title == "Mme"] <- "Mrs"
+df$Title[df$Title %in% rare_titles] <- "Rare"
+
+unique(df$Title)
+
+df$Deck <- factor(sapply(df$Cabin, function(x) strsplit(x, NULL)[[1]][1]))
+
+unique(df$Deck)
+
+df <- df %>%
+  select(-c(PassengerId, Name, Cabin, Ticket))
+```
+
+
+## Visualizing missingnesss
+
+```{r}
+missmap(obj = df)
+```
+
+```{r show_missing_values}
+df %>% 
+  gg_miss_var(show_pct = TRUE, facet = Survived)
+```
+
+```{r missing_value_heatmap}
+# Heatplot of missingness across the entire data frame  
+df %>% vis_miss()
+```
+
+## Imputing missing values
+
+```{r imputing-missing-values}
+df$Embarked[is.na(df$Embarked)] <- mlv(df$Embarked, method = "mfv")
+
+# Imputing with MICE
+factor_vars <- c("Pclass", "Sex", "SibSp", "Parch", "Embarked", "Title")
+df[factor_vars] <- lapply(df[factor_vars], function(x) as.factor(x))
+
+impute_mice <- mice(df[, !names(df) %in% c("Survived")], method = "rf")
+result_mice <- complete(impute_mice)
+```
+
+```{r sanity-check}
+density_before <- ggplot(df, aes(x = Age)) +
+  geom_density(fill = "#e74c3c", alpha = 0.6) +
+  labs(title = "Age: Before Imputation") +
+  theme_classic()
+
+density_after <- ggplot(result_mice, aes(x = Age)) +
+  geom_density(fill = "#2ecc71", alpha = 0.6) +
+  labs(title = "Age: After Imputation") +
+  theme_classic()
+
+plot_grid(density_before, density_after)
+```
+
+```{r}
+df$Age <- result_mice$Age
+df$Deck <- result_mice$Deck
+df$Deck <- as.factor(df$Deck)
+```
+
+## Modeling
+
+```{r slit-dataset}
+set.seed(42)
+
+sample_split <- sample.split(Y = df$Survived, SplitRatio = 0.7)
+train_set <- subset(x = df, sample_split == TRUE)
+test_set <- subset(x = df, sample_split == FALSE)
+
+```
+
+```{r fit-model}
+logistic <- glm(Survived ~ ., data = train_set, family = "binomial")
+summary(logistic)
+```
+
+Explore feature importances with the varImp()
+function
+```{r feature-seletion}
+importances <- varImp(logistic)
+
+importances %>%
+  arrange(desc(Overall)) %>%
+  top_n(10)
+```
+## Prediction
+
+```{r predictin-confusion-matrix}
+probs <- predict(logistic, newdata = test_set, type = "response")
+pred <- ifelse(probs > 0.5, 1, 0)
+
+confusionMatrix(factor(pred), factor(test_set$Survived), positive = as.character(1))
+```
+
+

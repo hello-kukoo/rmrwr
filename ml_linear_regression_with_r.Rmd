@@ -1,0 +1,192 @@
+---
+title: "Linear Regression with R"
+subtitle: https://appsilon.com/r-linear-regression/
+author: "Lin Yong (yong.lin@datarx.cn)"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    number_sections: yes
+    toc: yes
+    toc_depth: 4
+    toc_float:
+      collapsed: no
+      smooth_scrool: no
+    theme: journal
+    highlight: tango
+    code_folding: hide
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message=FALSE, warning=FALSE)
+
+pacman::p_load(
+  tidyverse,
+  reshape2,
+  caTools,
+  caret,
+  rpart,
+  rpart.plot,
+  skimr
+)
+```
+
+# Introduction
+
+Linear regression assumes a linear relationship between the input variable(s) and a single output variable. Needless to say, the output variable (what you’re predicting) has to be continuous. The output variable can be calculated as a linear combination of the input variables.
+
+There are two types of linear regression:
+
+- Simple linear regression – only one input variable
+- Multiple linear regression – multiple input variables
+
+There’re assumptions of a linear regression model:
+
+- Linear assumption — model assumes that the relationship between variables is linear
+- No noise — model assumes that the input and output variables are not noisy — so remove outliers if possible
+- No collinearity — model will overfit when you have highly correlated input variables
+- Normal distribution — the model will make more reliable predictions if your input and output variables are normally distributed. If that’s not the case, try using some transforms on your variables to make them more normal-looking
+- Rescaled inputs — use scalers or normalizer to make more reliable predictions
+
+# Simple Linear Regression
+A simple linear regression can be expressed as: 
+
+$$
+y = \beta _{0} + \beta _{1} x
+$$
+
+Here’s the formula to calculate $\beta _{1}$:
+
+$$
+\beta _{1} = \frac{ \sum_{i=1}^{n}(x_i-\bar{x})\times(y_i-\bar{y})}{ \sum_{i=1}^{n}(x_i-\bar{x})^2} 
+$$
+
+And here’s the formula for $\beta _{0}$:
+
+$$
+\beta _{0} = \bar{y} - \beta _{1} \times x
+$$
+
+
+The code snippet below generates X with 300 linearly spaced numbers between 1 and 300, and generates Y as a value from the normal distribution centered just above the corresponding X value with a bit of noise added. Both X and Y are then combined into a single data frame and visualized as a scatter plot .
+
+```{r generate-data}
+
+# Generate synthetic data with a clear linear relationship
+x <- seq(from = 1, to = 300)
+y <- rnorm(n = 300, mean = x + 2, sd = 25)
+
+# Convert to dataframe
+simple_lr_data <- data.frame(x, y)
+
+# Visualize as scatter plot
+ggplot(data = simple_lr_data, aes(x = x, y = y)) +
+  geom_point(size = 3, color = "#0099f9") +
+  geom_smooth() +
+  theme_classic() +
+  labs(
+    title = "Dataset for simple linear regression",
+    subtitle = "A clear linear relationship is visible"
+  )
+
+```
+
+The coefficients for $\beta _{0}$ and $\beta _{1}$ are obtained first, and then wrapped into a `simple_lr_predict()` function that implements the line equation.
+
+The predictions can then be obtained by applying the `simple_lr_predict()` function to the vector `X` – they should all line on a single straight line. Finally, input data and predictions are visualized with the ggplot2 package
+
+```{r caculate-the-coefficients}
+
+# Calculate coefficients
+b1 <- (sum((x - mean(x)) * (y - mean(y)))) / (sum((x - mean(x))^2))
+b0 <- mean(y) - b1 * mean(x)
+
+# Define function for generating predictions
+simple_lr_predict <- function(x) {
+  return(b0 + b1 * x)
+}
+
+# Apply simple_lr_predict() to input data
+simple_lr_predictions <- sapply(x, simple_lr_predict)
+simple_lr_data$yhat <- simple_lr_predictions
+
+# Visualize input data and the best fit line
+ggplot(data = simple_lr_data, aes(x = x, y = y)) +
+  geom_point(size = 3, color = "#0099f9") +
+  geom_line(aes(x = x, y = yhat), size = 2) +
+  theme_classic() +
+  labs(
+    title = "Applying simple linear regression to data",
+    subtitle = "Black line = best fit line"
+  )
+```
+
+# Multiple Linear Regression with R
+
+```{r}
+# Load in th dataset
+df <- read_csv("data/Fish.csv")
+
+# Draw boxplot
+df %>% 
+  pivot_longer(cols = c(Length1, Length2, Length3, Height, Width), names_to = "variable", values_to = "value") %>%
+  ggplot(aes(x = variable, y = value)) +
+  geom_boxplot()
+```
+
+## Data preparation
+
+```{r split-data}
+set.seed(56)
+
+# Train/Test split in 70:30 ratio
+sample_split <- sample.split(Y = df$Weight, SplitRatio = 0.7)
+train_set <- subset(x = df, sample_split == TRUE)
+test_set <- subset(x = df, sample_split == FALSE)
+```
+
+## Modeling
+
+```{r modeling}
+# Fit the model and obtain summary
+model <- lm(Weight ~ ., data = train_set)
+summary(model)
+```
+
+## Residuals
+
+As a general rule, if a histogram of residuals looks normally distributed, the linear model is as good as it can be. If not, it means you can improve it somehow. 
+
+```{r plotting-residuals}
+# Get residuals
+lm_residuals <- as.data.frame(residuals(model))
+
+# Visualize residuals
+ggplot(lm_residuals, aes(residuals(model))) +
+  geom_histogram(fill = "#0099f9", color = "black") +
+  theme_classic() +
+  labs(title = "Residuals plot")
+```
+
+## Predication
+
+```{r predication}
+# Make predictions on the test set
+predictions <- predict(model, test_set)
+
+# Convert to dataframe
+eval <- cbind(test_set$Weight, predictions)
+colnames(eval) <- c("Y", "Yhat")
+eval <- as.data.frame(eval)
+head(eval)
+```
+
+
+
+
+
+
+
+
+
+
+

@@ -1,0 +1,262 @@
+---
+title: "第三章 总体均数的估计与假设检验"
+subtitle: "医学统计学 - Chapter 3"
+author: "Lin Yong (yong.lin@datarx.cn)"
+date: "`r Sys.Date()`"
+output: 
+  html_document:
+    number_sections: true
+    toc: true
+    toc_depth: 2
+    toc_float:
+      collapsed: false
+      smooth_scrool: false
+    theme: readable
+    highlight: tango
+    code_folding: hide
+---
+
+```{r setup}
+knitr::opts_chunk$set(warning = FALSE, message = FALSE)
+#使用memic包读取spss的数据格式
+library("memisc")
+library("haven")
+
+library("rstatix")
+#l使用scales包中alpha函数改变颜色透明度
+library("scales")
+```
+
+## 单样本$t$检验
+
+```{r read-data}
+#读取数据
+# home_sav <- spss.system.file("data/例03-05.sav")
+#将数据形式转换为数据框
+# home_df <- as.data.frame(as.data.set(home_sav))
+
+home_df <- read_sav("data/medical-stats/例03-05.sav", encoding = "GBK")
+```
+
+```{r t-test}
+#直接使用t.test()进行计算
+# t.test(home_df$hb, mu=140)
+
+home_df %>% t_test(hb ~ 1, mu = 140)
+```
+
+```{r t-test-single-side}
+#左侧检验
+t.test(home_df$hb, mu=140, alternative = "less")
+
+#右侧检验
+t.test(home_df$hb, mu=140, alternative = "greater")
+```
+
+```{r plot-t-test}
+
+t.value <- -2.136668
+df = 35
+x <- seq(-5, 5, by = 0.01)
+y <- dt(x, df = df)
+
+#右侧p值0.95对应的t值
+right <- qt(0.95, df = df)
+#左p值0.05对应的t值
+left <- qt(0.05, df = df, lower.tail = T)
+
+#绘制密度曲线
+plot(
+  x,
+  y,
+  type = "l",
+  xaxt = "n",
+  ylab = "Probabilityy",
+  xlab = expression(paste('Assumed Distribution of ', bar(x))),
+  axes = FALSE,
+  ylim = c(0, max(y) * 1.1),
+  xlim = c(min(x), max(x)),
+  frame.plot = FALSE
+)
+
+#添加坐标轴
+axis(
+  1,
+  at = c(-5, left, right, 0, 5),
+  pos = c(0, 0),
+  labels = c(
+    expression(' '),
+    expression(bar(x)[cil]),
+    expression(bar(x)[cir]),
+    expression(mu[0]),
+    expression('')
+  )
+)
+
+axis(2, pos = c(-5, 0))
+
+#标记左侧和右侧的拒绝域
+xRiReject <- seq(right, 5, by = 0.01)
+yRiReject <- dt(xRiReject, df = df, )
+xLeReject <- seq(left, -5, by = -0.01)
+yLeReject <- dt(xLeReject, df = df)
+
+#用poltgon()绘制拒绝域
+polygon(
+  c(xRiReject, xRiReject[length(xRiReject)], xRiReject[1]),
+  c(yRiReject, 0, 0),
+  col = alpha("red", 0.4),
+  border = NA
+)
+polygon(
+  c(xLeReject, xLeReject[length(xLeReject)], xLeReject[1]),
+  c(yLeReject, 0, 0),
+  col = alpha("red", 0.4),
+  border = NA
+)
+
+#在坐标轴上添加t值标记
+axis(
+  1,
+  at = c(t.value, -1 * (t.value)),
+  pos = c(0, 0),
+  lwd.ticks = 1,
+  labels = c(round(t.value, 2), round(-1 * (t.value), 2))
+)
+arrows(
+  -1 * (t.value),
+  0,
+  -1 * (t.value),
+  0.4,
+  length = 0,
+  lty = 2,
+  col = "blue"
+)
+arrows(
+  t.value,
+  0,
+  t.value,
+  0.4,
+  length = 0,
+  lty = 2,
+  col = "blue"
+)
+```
+
+
+## 配对样本$t$检验
+
+```{r read-data-3.6, message=FALSE, warning=FALSE}
+#读取数据
+bfc_sav<-spss.system.file("data/medical-stats/例03-06.sav")
+#将数据形式转换为数据框
+bfc_df<-as.data.frame(as.data.set(bfc_sav))
+```
+
+```{r paired-t-test}
+#直接使用t.test()进行计算，注意paired=TRUE
+t.test(bfc_df$x1, bfc_df$x2, paired=TRUE)
+```
+```{r plot-paired-t-test}
+t.value <- 7.926
+df = 9
+x <- seq(-9, 9, by = 0.01)
+y <- dt(x, df = df)
+
+#右侧p值0.95对应的t值
+right <- qt(0.95, df = df)
+#左p值0.05对应的t值
+left <- qt(0.05, df = df, lower.tail = T)
+
+#绘制密度曲线
+plot(
+  x,
+  y,
+  type = "l",
+  xaxt = "n",
+  ylab = "probabilityy",
+  xlab = expression(paste('Assumed Distribution of ', bar(x))),
+  axes = FALSE,
+  ylim = c(0, max(y) * 1.1),
+  xlim = c(min(x), max(x)),
+  frame.plot = FALSE
+)
+
+#添加坐标轴
+axis(
+  1,
+  at = c(-9, left, right, 0, 9),
+  pos = c(0, 0),
+  labels = c(
+    expression(' '),
+    expression(bar(x)[cil]),
+    expression(bar(x)[cir]),
+    expression(mu[0]),
+    expression('')
+  )
+)
+axis(2, pos = c(-9, 0))
+
+#标记左侧和右侧的拒绝域
+xRiReject <- seq(right, 9, by = 0.01)
+yRiReject <- dt(xRiReject, df = df, )
+xLeReject <- seq(left, -9, by = -0.01)
+yLeReject <- dt(xLeReject, df = df)
+
+#用poltgon()绘制拒绝域
+polygon(
+  c(xRiReject, xRiReject[length(xRiReject)], xRiReject[1]),
+  c(yRiReject, 0, 0),
+  col = alpha("red", 0.4),
+  border = NA
+)
+polygon(
+  c(xLeReject, xLeReject[length(xLeReject)], xLeReject[1]),
+  c(yLeReject, 0, 0),
+  col = alpha("red", 0.4),
+  border = NA
+)
+
+#在坐标轴上添加t值标记
+axis(
+  1,
+  at = c(t.value, -1 * (t.value)),
+  pos = c(0, 0),
+  lwd.ticks = 1,
+  labels = c(round(t.value, 2), round(-1 * (t.value), 2))
+)
+arrows(
+  -1 * (t.value),
+  0,
+  -1 * (t.value),
+  0.4,
+  length = 0,
+  lty = 2,
+  col = "blue"
+)
+arrows(
+  t.value,
+  0,
+  t.value,
+  0.4,
+  length = 0,
+  lty = 2,
+  col = "blue"
+)
+```
+
+## 两种独立样本$t$检验
+
+```{r read-data-3.7}
+#读取数据
+bfg_df <- read_sav("data/medical-stats/例03-07.sav", encoding = "GBK")
+```
+
+```{r group-t-test}
+x <- bfg_df$x[which(bfg_df$group==1)]
+y <- bfg_df$x[which(bfg_df$group==2)]
+
+#直接使用t.test()进行计算，注意 var.equal=TRUE
+t.test(x, y, var.equal=TRUE)
+```
+

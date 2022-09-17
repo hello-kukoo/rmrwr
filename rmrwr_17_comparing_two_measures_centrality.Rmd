@@ -1,0 +1,175 @@
+---
+title: "Chapter 17 - Comparing Two Measures of Centrality"
+subtitle: "RMRWR - Reproducible Medical Research with R"
+author: 
+  - "Peter D.R. Higgins, MD, PhD, MSc"
+  - "Lin Yong (yong.lin@datarx.cn)"
+date: "`r Sys.Date()`"
+output: 
+  html_document:
+    number_sections: true
+    toc: true
+    toc_depth: 2
+    toc_float:
+      collapsed: false
+      smooth_scrool: false
+    theme: readable
+    highlight: tango
+    code_folding: hide
+---
+
+```{r setup, include=FALSE}
+pacman::p_load(
+  rio,          # File import
+  here,         # File locator
+  skimr,        # get overview of data
+  tidyverse,    # data management + ggplot2 graphics 
+  gtsummary,    # summary statistics and tests
+  rstatix,      # summary statistics and statistical tests
+  janitor,      # adding totals and percents to tables
+  scales,       # easily convert proportions to percents  
+  flextable,    # converting tables to pretty images
+  medicaldata,  # medical data
+  car           # qqplot
+  )
+
+knitr::opts_chunk$set(message=FALSE, warning=FALSE)
+options(htmltools.dir.version = FALSE)
+```
+
+Comparing two groups
+- Mean or median vs. expected
+- Two arms of study - independent
+- Pre and post / spouse and partner / left vs right arm – paired groups
+- Are the means significantly different?
+- Or the medians (if not normally distributed)?
+
+## The data
+
+```{r importing}
+data <- cytomegalovirus
+
+# skim the data set
+skim(data)
+
+data %>% 
+  group_by(sex) %>% 
+  summarize(mean_time2cmv = mean(time.to.cmv))
+```
+
+## Visulization
+
+```{r}
+data %>% 
+  ggplot(mapping = aes(time.to.cmv)) +
+  geom_density() +
+  # facet_wrap(~sex) +
+  theme_linedraw()
+```
+```{r}
+data %>% 
+  get_summary_stats(
+    time.to.cmv, CD3.dose,  # columns to calculate for
+    type = "common")                    # summary stats to return
+
+```
+
+```{r message=FALSE, warning=FALSE}
+data %>% 
+  ggplot(mapping = aes(CD3.dose)) +
+  # geom_histogram() +
+  geom_density() +
+  facet_wrap(~sex) +
+  theme_linedraw()
+```
+
+```{r normality-test}
+data$time.to.cmv %>% 
+  shapiro.test()
+
+car::qqPlot(data$time.to.cmv, ylab="Time to CMV", main="Time to CMV qq-plot")
+```
+
+## Mammal sleep hours {.tabset}
+
+```{r mammal-sleep-data}
+df <- msleep
+
+skim(df)
+```
+
+### Density
+
+```{r sleeptotal-density}
+df %>% 
+  ggplot(mapping = aes(df$sleep_total)) +
+    geom_density() +
+    theme_linedraw()
+```
+
+### Shapiro Test
+
+```{r sleeptotal-normality-test}
+shapiro.test(df$sleep_total)
+#df %>% shapiro_test(sleep_total)
+```
+
+### qqPlot
+
+```{r sleeptotal-qqplot}
+car::qqPlot(df$sleep_total, ylab="Total Sleep time", main="Total Sleep qq-plot")
+```
+
+## One Sample T test
+
+Is the mean roughly 8 hours of sleep per day?
+
+univariate test
+
+- $H_0$: mean is 8 hours
+- $H_1$: mean is not 8 hours
+
+```{r slepptotal-t-test-8h}
+t.test(df$sleep_total, mu = 8)
+```
+
+## 2 group t test  {.tabset}
+
+- hypothesis - herbivores need more time to get food, sleep less than carnivores
+- how to test this?
+  - normal, so can use t test for 2 groups
+
+```{r}
+df %>% 
+  filter(vore %in% c("herbi", "carni")) %>% 
+  select(name, vore, sleep_total) %>% 
+  ggplot(mapping = aes(sleep_total)) +
+    geom_density() +
+    facet_wrap(~vore) +
+    theme_linedraw()  
+```
+  
+### Results
+
+```{r}
+result <- df %>% 
+  filter(vore %in% c("herbi", "carni")) %>% 
+  t.test(formula = sleep_total ~ vore, data = .)
+  
+result
+
+result %>% 
+  tidy() %>% 
+  flextable()
+```
+
+### Interpreting
+
+- Welch t-test (not Student)
+  - Welch does NOT assume equal variances in each group
+- p value NS
+- accept null hypothesis
+  - Ho: means of groups roughly equal
+  - Ha: means are different
+  - 95% CI crosses 0
+- Carnivores sleep a little more, but not a lot
